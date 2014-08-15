@@ -1,12 +1,11 @@
 <?php
 
-use Illuminate\Console\Command;
-use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Input\InputArgument;
-
-use FintechFab\Models\IGitHubModel;
-use FintechFab\Models\GitHubComments;
 use FintechFab\Components\GitHubAPI;
+use FintechFab\Models\GitHubComments;
+use FintechFab\Models\IGitHubModel;
+use Illuminate\Console\Command;
+use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputOption;
 
 class FintechFabFromGitHub extends Command {
 	/**
@@ -40,8 +39,7 @@ class FintechFabFromGitHub extends Command {
 		$owner = Config::get("github.owner");
 		$repo = Config::get("github.trainingRepo");
 
-		$this->gitHubAPI = new GitHubAPI();
-		$this->gitHubAPI->setRepo($owner, $repo);
+		$this->gitHubAPI = new GitHubAPI($owner, $repo);
 	}
 
 	/**
@@ -62,7 +60,8 @@ class FintechFabFromGitHub extends Command {
 
 		switch($this->argument('Category')) {
 			case "comments":
-				$maxDate = GitHubComments::max('updated');
+				$maxDate = GitHubComments::max('updated'); //Максимальная дата, полученная с GitHub'а
+				//В парметре — запрос еще не полученных данных, добавленных или измененных после указанной даты
 				$param = empty($maxDate) ? "" : "since='" . str_replace(" ", "T", $maxDate) . "Z'";
 
 				$this->gitHubAPI->setNewRepoQuery('issues/comments', $param);
@@ -77,6 +76,10 @@ class FintechFabFromGitHub extends Command {
 			case "issuesEvents":
 				break;
 			case "users":
+				break;
+			case "limit":
+				//Получение инф. о лимите запросов
+				$this->info($this->gitHubAPI->getLimit() );
 				break;
 			default:
 

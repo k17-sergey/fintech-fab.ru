@@ -13,7 +13,7 @@ use Eloquent;
  * @property integer $id
  * @property string  $html_url
  * @property integer $issue_number
- * @property integer $created
+ * @property integer $created  //Поля метки времени из другой БД переименованы
  * @property integer $updated
  * @property string  $user_login
  * @property string  $prev
@@ -21,7 +21,7 @@ use Eloquent;
   */
 class GitHubComments extends Eloquent implements IGitHubModel
 {
-	public $timestamps = false;
+	public $timestamps = false; //Используются даные GitHub'а (поля "timestamps" из другой БД)
 
 	protected $table = 'github_comments';
 
@@ -50,8 +50,10 @@ class GitHubComments extends Eloquent implements IGitHubModel
 		$this->html_url = $inData->html_url;
 		$n = explode('/', $inData->issue_url);
 		$this->issue_number = $n[count($n)-1];
+		//Поля метки времени из другой БД должны быть переименованы
 		$this->created = $inData->created_at;
 		$this->updated = $inData->updated_at;
+
 		$this->user_login = $inData->user->login;
 		$this->prev = $this->trimCommentBody($inData->body);
 		return true;
