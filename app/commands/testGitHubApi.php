@@ -175,7 +175,32 @@ class testGitHubApi extends Command
 
 				break;
 			case "test":
-				$res = $this->getFromGitHubApi("https://api.github.com/repos/fintech-fab/fintech-fab.ru/issues/comments/50821114");
+				//$str = 'xxxxxx<https://api.github.com/repositories/16651992/issues/events?page=1>; rel="first"';
+				//$str = '<https://api.github.com/repositories/16651992/issues/events?page=1>';
+
+				//$res = preg_grep("/<.+>/", explode(";", $str));
+				//$res = preg_grep("/<(.+)>/", array( $str));
+				//$res = '';
+				//preg_match('/rel=\"(.+)\"+/', $str, $res); //+
+				//preg_match("/<(.+)>/", $str, $res);
+
+				//preg_match('/<(.+)>;\s+rel=\"(.+)\"/', $str, $res); //+
+
+				$this->_curl_nobody = true;
+				$newRes = $this->getFromGitHubApi($this->apiRepos . "issues/events");
+				$str = $newRes["header"]["Link"];
+				//$res[] = preg_grep('/<(.+)>;\s+rel=\"(.+)\"/', explode(',', $str) ); //(-)
+				preg_match_all('/<(.+)>;\s*+rel=\"(.+)\"/U', $str, $res); //+
+				//$res[] = $newRes["header"]["origin"];
+
+
+				preg_match_all('/(.+):(.+)\r\n/U', $newRes["header"]["originStr"], $res1); //+
+				$res[] = $res1;
+				if(count($res1) == 3)
+				{
+					$res[] = array_combine($res1[1], $res1[2]);
+				}
+
 				break;
 			default:
 				//тесты (сюда не смотреть)
@@ -186,6 +211,7 @@ class testGitHubApi extends Command
 				//$res = GitHubComments::find(41154299)->issue();
 				$com = GitHubIssues::find(7)->comments();
 				$res = array();
+				/** @var GitHubIssues $comment */
 				foreach($com as $comment)
 				{
 					$res[] = $comment->user();
@@ -284,18 +310,25 @@ class testGitHubApi extends Command
 		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 		curl_close($ch);
 
+		$header = array();
 
-/*
-		//$hdr = http_parse_headers($response);
-		$hdr = http_parse_headers($response);
-		$this->info(print_r($hdr, true));
-		*/
+		$pos = strpos($response, "\r\n\r\n"); //альтернативный вариант отделения заголовка
+		$header['originStr'] = substr($response, 0, $pos);//альтернативный вариант отделения заголовка
+
+
+
+
+		/*
+				//$hdr = http_parse_headers($response);
+				$hdr = http_parse_headers($response);
+				$this->info(print_r($hdr, true));
+				*/
 
 
 
 		$res = explode("\r\n", $response);
 		$response = array_pop($res);
-		$header = array();
+		//$header = array();
 		for($i = 1; $i < count($res); $i++)
 		{
 			$p = strpos($res[$i], ":");
@@ -304,6 +337,7 @@ class testGitHubApi extends Command
 				$header[substr($res[$i], 0, $p)] = substr($res[$i], $p + 1);
 			}
 		}
+		$header['origin'] = $res;
 		$fullResponse = array();
 		 $this->_rateLimit = self::isNull($header['X-RateLimit-Limit'], 0);
 		 $this->_rateLimitRemaining = self::isNull($header['X-RateLimit-Remaining'], 0);

@@ -6,6 +6,10 @@
  * 		$gitHubAPI = new GitHubAPI();
  *      $gitHubAPI->setRepo($owner, $repository); //('fintech-fab', 'fintech-fab.ru');
  *
+ * либо:
+ * 		$gitHubAPI = new GitHubAPI($owner, $repository);
+ *
+ *
  * запросы:
  *      $gitHubAPI->setNewRepoQuery($contentOfRepository, $params); //('issues/comments') | ('')
  *		while($gitHubAPI->doNextRequest())
@@ -47,13 +51,25 @@ class GitHubAPI
 	 */
 	private $workRepo = '';
 	/**
-	 * @param string $owner
-	 * @param string $repo
+	 * @param string $owner  Владелец репозитория
+	 * @param string $repo   Репозиторий на GitHub'е
+	 */
+	public function __construct($owner = '', $repo = '')
+	{
+		if(! ($owner == '' || $repo == ''))
+		{
+			$this->setRepo($owner, $repo);
+		}
+	}
+	/**
+	 * @param string $owner  Владелец репозитория
+	 * @param string $repo   Репозиторий на GitHub'е
 	 */
 	public function setRepo($owner, $repo)
 	{
 		$this->workRepo = self::BASE_URL . 'repos/' . $owner . '/' . $repo;
 	}
+
 
 	//Исполняемые запросы
 	private $startUrl = '';   //информативно, о первом запросе в цепочке запросов
@@ -119,6 +135,8 @@ class GitHubAPI
 	 * Выполнять запросы к API GitHub через этот метод
 	 * Адрес запроса уже должен быть готов (содержится в $this->currentUrl)
 	 *
+	 * Метод запускает запрос на выполнение и подготавливает слеюдующий (если есть ссылка на следующую страницу)
+	 *
 	 * @return bool
 	 */
 	public function doNextRequest()
@@ -128,51 +146,19 @@ class GitHubAPI
 		{
 			return false;
 		}
-		else
-		{
-			$status = $this->doGitHubRequest($this->currentUrl);
-			switch($status)
-			{
-				case 0:
-					$this->messageOfResponse = "Error number: {$this->errno} \r\n{$this->error} \r\n";
-					break;
-				case 200:
-					$this->messageOfResponse = 'OK';
-					break;
-				case 304:
-					$this->messageOfResponse = 'Запрос выполнен успешно. Новых данных нет.';
-					break;
-				case 403:
-					if(isset($this->header['X-RateLimit-Remaining']))
-					{
-						if($this->header['X-RateLimit-Remaining'] == 0)
-						{
-							$this->messageOfResponse .= "Лимит запросов исчерпан. \nВозобновить можно после: "
-								 . date("c", $this->header['X-RateLimit-Reset']) . "\n";
-						}
-					}
-			}
-			if(!($status == 0 || $status == 200))
-			{
-				$this->messageOfResponse .= isset($this->header['Status']) ?
-					"Status: {$this->header['Status']} \n" :
-					"Status: $status \n";
-				if(isset($this->response->message))
-				{
-					$this->messageOfResponse .= $this->response->message;
-				}
-			}
+		$this->doGitHubRequest($this->currentUrl);
 
-			$this->usedUrl = $this->currentUrl;
-			if(isset($this->header['Link']['next']))
-			{
-				$this->currentUrl = $this->header['Link']['next'];
-			}else
-			{
-				$this->currentUrl = '';
-			}
+		//Запись инф-ции об использованном запросе
+		$this->usedUrl = $this->currentUrl;
+
+		//Подготовка следующего запроса
+		if(isset($this->header['Link']['next']))
+		{
+			$this->currentUrl = $this->header['Link']['next'];
+		}else
+		{
+			$this->currentUrl = '';
 		}
-		$this->isDone = ($this->messageOfResponse == 'OK');
 
 		return $this->isDone;
 	}
@@ -193,8 +179,8 @@ class GitHubAPI
 	 *
 	 * @param string $url
 	 *
-	 * Возврщает код HTTP
-	 * @return integer
+	 * Возврщает true если выполнено без ошибок
+	 * @return bool
 	 */
 	private function doGitHubRequest($url)
 	{
@@ -202,6 +188,7 @@ class GitHubAPI
 		$this->errno = 0;
 		$this->header = array();
 		$this->response = '';
+		$this->isDone = false; //Успешный запрос ресурса
 
 		$ch = curl_init();
 		curl_setopt($ch, CURLOPT_URL, $url);
@@ -216,31 +203,29 @@ class GitHubAPI
 			$this->error = curl_error($ch);
 			$this->errno = curl_errno($ch);
 			curl_close($ch);
-			return 0;
+			$this->parseResponseStatus(0);
+			return false;
 		}
 
 		$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+		$this->isDone = ($http_code == 200);
 		curl_close($ch);
 
-		$pos = strpos($response, "\r\n\r\n"); //альтернативный вариант отделения заголовка
-		$strArray = ($pos === false) ? array() : explode("\r\n", substr($response, 0, $pos));//альтернативный вариант отделения заголовка
-		$response = trim(substr($response, $pos)); //альтернативный вариант отделения заголовка
-		$this->response = json_decode($response); //альтернативный вариант отделения заголовка
+		$pos = strpos($response, "\r\n\r\n");
+		preg_match_all('/(.+):(.+)\r\n/U', substr($response, 0, $pos), $strArray);
 
-		for($i = 1; $i < count($strArray); $i++)
-		{
-			$pos = strpos($strArray[$i], ":");
-			if($pos > 0)
-			{
-				$this->header[substr($strArray[$i], 0, $pos)] = substr($strArray[$i], $pos + 1);
-			}
-		}
+		$this->header = array_combine($strArray[1], $strArray[2]);
 		if(isset($this->header["Link"]))
 		{
 			$this->header["Link"] = self::decodePageLinks($this->header["Link"]);
 		}
 
-		return $http_code;
+		$response = trim(substr($response, $pos));
+		$this->response = json_decode($response);
+
+		$this->parseResponseStatus($http_code);
+
+		return true;
 	}
 
 	/**
@@ -265,6 +250,47 @@ class GitHubAPI
 			$pageLinks[trim($rel, ' "')] = trim($link[0], " <>");
 		}
 		return $pageLinks;
+	}
+
+	/**
+	 * Разбор статуса http ответа и
+	 * создание итогового сообщения о результате
+	 *
+	 * @param integer $status
+	 */
+	private function parseResponseStatus($status)
+	{
+		switch($status)
+		{
+			case 0:
+				$this->messageOfResponse = "Error number: {$this->errno} \r\n{$this->error} \r\n";
+				break;
+			case 200:
+				$this->messageOfResponse = 'OK';
+				break;
+			case 304:
+				$this->messageOfResponse = 'Запрос выполнен успешно. Новых данных нет.';
+				break;
+			case 403:
+				if(isset($this->header['X-RateLimit-Remaining']))
+				{
+					if($this->header['X-RateLimit-Remaining'] == 0)
+					{
+						$this->messageOfResponse .= "Лимит запросов исчерпан. \nВозобновить можно после: "
+							. date("c", $this->header['X-RateLimit-Reset']) . "\n";
+					}
+				}
+		}
+		if(!($status == 0 || $status == 200))
+		{
+			$this->messageOfResponse .= isset($this->header['Status']) ?
+				"Status: {$this->header['Status']} \n" :
+				"Status: $status \n";
+			if(isset($this->response->message))
+			{
+				$this->messageOfResponse .= $this->response->message;
+			}
+		}
 	}
 
 	/**

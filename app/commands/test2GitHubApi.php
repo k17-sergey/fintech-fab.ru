@@ -39,8 +39,9 @@ class test2GitHubApi extends Command {
 		$owner = Config::get("github.owner");
 		$repo = Config::get("github.trainingRepo");
 
-		$this->gitHubAPI = new GitHubAPI();
-		$this->gitHubAPI->setRepo($owner, $repo);
+		$this->gitHubAPI = new GitHubAPI($owner, $repo);
+		//$this->gitHubAPI = new GitHubAPI();
+		//$this->gitHubAPI->setRepo($owner, $repo);
 	}
 
 	/**
@@ -160,9 +161,9 @@ class test2GitHubApi extends Command {
 		//
 	}
 
-	private function prepareComments()
-	{
-	}
+	//private function prepareComments()
+	//{
+	//}
 
 	/**
 	 * @param $dataModel
@@ -177,7 +178,10 @@ class test2GitHubApi extends Command {
 		{
 			$this->info("Limit remaining: " . $this->gitHubAPI->getLimitRemaining());
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-			//$res[] = $this->editData($this->gitHubAPI->response, $func);
+			if($func != ''){
+				//$res[] = $this->editData($this->gitHubAPI->response, $func);
+			}
+
 			$this->saveInDB($this->gitHubAPI->response, $dataModel);
 		}
 		if(! $this->gitHubAPI->isDoneRequest())
