@@ -77,7 +77,7 @@ class FintechFabFromGitHub extends Command {
 				break;
 			case "users":
 				break;
-			case "limit":
+			case "rateLimit":
 				//Получение инф. о лимите запросов
 				$this->info($this->gitHubAPI->getLimit() );
 				break;
@@ -111,7 +111,7 @@ class FintechFabFromGitHub extends Command {
 	protected function getOptions()
 	{
 		return array(
-			array('helpArg', null, InputOption::VALUE_OPTIONAL, 'The help about used argument. --helpArg=*|all|:value_of_argument', null),
+			array('helpArg', null, InputOption::VALUE_OPTIONAL, 'The help about used argument. --helpArg=list|:value_of_argument', null),
 		);
 	}
 
@@ -121,7 +121,15 @@ class FintechFabFromGitHub extends Command {
 	 */
 	private function showHelp($option)
 	{
-		//
+		switch ($option) {
+			case "rateLimit":
+				$this->info("Rate limit. Ограничение количества запросов к GitHub API.\n\nКоличество запросов ограничено в течение часа, называемое \"Rate limit\"\n" .
+					"Для авторизованного соединения лимит намного выше.\n" .
+					"GitHub API сообщает также:" .
+					"\n      \"Rate limit remaining\" — количество доступных запросов (неизрасходованных)" .
+					"\n      \"Rate limit reset\" — время окончания текущего периода ограничений.");
+				break;
+		}
 	}
 
 
