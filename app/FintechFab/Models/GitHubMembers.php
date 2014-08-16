@@ -3,6 +3,7 @@
 namespace FintechFab\Models;
 
 use Eloquent;
+
 //use FintechFab\Models\GitHubIssues;
 
 /**
@@ -10,12 +11,11 @@ use Eloquent;
  *
  * @package FintechFab\Models
  *
- * @property integer $id
- * @property string  $login
- * @property string  $avatar_url
+ * @property string   $login
+ * @property string   $avatar_url
  * @property integer  $contributions
  *
-  */
+ */
 class GitHubMembers extends Eloquent implements IGitHubModel
 {
 
@@ -23,12 +23,11 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 
 	public function issues()
 	{
-		//return $this->hasMany('FintechFab\Models\GitHubIssues', "user_login");
 		return GitHubIssues::where("user_login", $this->login)->get();
 	}
+
 	public function users()
 	{
-		//return $this->hasMany('FintechFab\Models\GitHubIssues', "user_login");
 		return GitHubIssues::where("user_login", $this->login)->get();
 	}
 
@@ -37,6 +36,7 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 	{
 		return 'login';
 	}
+
 	public function getMyName()
 	{
 		return 'user';
@@ -46,27 +46,27 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 	{
 		$this->login = $inData->login;
 		$this->avatar_url = $inData->avatar_url;
-		if(! empty($inData->contributions)) {
+		if (!empty($inData->contributions)) {
 			$this->contributions = $inData->contributions;
 		}
+
 		return true;
 	}
+
 	public function updateFromGitHub($inData)
 	{
 		$changed = false;
-		if($this->avatar_url != $inData->avatar_url)
-		{
+		if ($this->avatar_url != $inData->avatar_url) {
 			$this->avatar_url = $inData->avatar_url;
 			$changed = true;
 		}
-		if(! empty($inData->contributions))
-		{
-			if($this->contributions != $inData->contributions)
-			{
+		if (!empty($inData->contributions)) {
+			if ($this->contributions != $inData->contributions) {
 				$this->contributions = $inData->contributions;
 				$changed = true;
 			}
 		}
+
 		return $changed;
 	}
 

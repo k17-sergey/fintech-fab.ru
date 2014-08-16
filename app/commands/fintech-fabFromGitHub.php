@@ -2,12 +2,15 @@
 
 use FintechFab\Components\GitHubAPI;
 use FintechFab\Models\GitHubComments;
+use FintechFab\Models\GitHubMembers;
+use FintechFab\Models\GitHubConditions;
 use FintechFab\Models\IGitHubModel;
 use Illuminate\Console\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
-class FintechFabFromGitHub extends Command {
+class FintechFabFromGitHub extends Command
+{
 	/**
 	 * The console command name.
 	 *
@@ -24,10 +27,10 @@ class FintechFabFromGitHub extends Command {
 
 	/**
 	 * Зппросы к API GitHub и ответы
+	 *
 	 * @var GitHubAPI
 	 */
 	private $gitHubAPI;
-
 
 
 	/**
@@ -50,15 +53,15 @@ class FintechFabFromGitHub extends Command {
 	public function fire()
 	{
 		$helpOption = $this->option('helpArg');
-		if(! empty($helpOption))
-		{
+		if (!empty($helpOption)) {
 			$this->showHelp($helpOption);
+
 			return;
 		}
 
 		$this->info("It's OK. Begin...");
 
-		switch($this->argument('Category')) {
+		switch ($this->argument('Category')) {
 			case "comments":
 				$maxDate = GitHubComments::max('updated'); //Максимальная дата, полученная с GitHub'а
 				//В парметре — запрос еще не полученных данных, добавленных или измененных после указанной даты
@@ -76,16 +79,16 @@ class FintechFabFromGitHub extends Command {
 			case "issuesEvents":
 				break;
 			case "users":
+				$this->usersData('contributors');
+				$this->usersData('assignees'); //Группа подписчиков
 				break;
-			case "limit":
+			case "rateLimit":
 				//Получение инф. о лимите запросов
-				$this->info($this->gitHubAPI->getLimit() );
+				$this->info($this->gitHubAPI->getLimit());
 				break;
 			default:
 
 		}
-
-
 
 
 	}
@@ -111,19 +114,51 @@ class FintechFabFromGitHub extends Command {
 	protected function getOptions()
 	{
 		return array(
-			array('helpArg', null, InputOption::VALUE_OPTIONAL, 'The help about used argument. --helpArg=*|all|:value_of_argument', null),
+			array('helpArg', null, InputOption::VALUE_OPTIONAL, 'The help about used argument. --helpArg=list|:value_of_argument', null),
 		);
 	}
 
 	/**
 	 * Выводит на экран список используемых значений аргумента или детально по указанному значению
+	 *
 	 * @param string $option
 	 */
 	private function showHelp($option)
 	{
-		//
+		switch ($option) {
+			case "list":
+				//
+				break;
+			case "rateLimit":
+				$this->info("Rate limit. Ограничение количества запросов к GitHub API.\n\nКоличество запросов ограничено в течение часа, называемое \"Rate limit\"\n" .
+					"Для авторизованного соединения лимит намного выше.\n" .
+					"GitHub API сообщает также:" .
+					"\n      \"Rate limit remaining\" — количество доступных запросов (неизрасходованных)" .
+					"\n      \"Rate limit reset\" — время окончания текущего периода ограничений.");
+				break;
+		}
 	}
 
+
+	/**
+	 * Получение данных пользователей
+	 *
+	 * @param string $group
+	 */
+	private function usersData($group)
+	{
+		$this->gitHubAPI->setNewRepoQuery($group);
+		$this->prepareCondition($group); //Если запрос повторный, подготовка соответствующего заголовка запроса
+		if ($this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			$this->saveInDB($this->gitHubAPI->response, GitHubMembers::class);
+
+			$this->updateConditionalRequest($group); //Обновление условия повторных запросов, если есть
+		} else {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+	}
 
 	/**
 	 * Загрузка всех данных и вывод сообщений
@@ -133,20 +168,70 @@ class FintechFabFromGitHub extends Command {
 	 */
 	private function processTheData($dataModel)
 	{
-		while($this->gitHubAPI->doNextRequest())
-		{
+		while ($this->gitHubAPI->doNextRequest()) {
 			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 			$this->saveInDB($this->gitHubAPI->response, $dataModel);
 		}
-		if(! $this->gitHubAPI->isDoneRequest())
-		{
+		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 	}
 
 	/**
-	 * @param array $inData
+	 * Подготовка условия (если есть) для повторных запросов к API GitHub.
+	 *
+	 * @param string $forRepoItem
+	 */
+	private function prepareCondition($forRepoItem)
+	{
+		/** @var Eloquent|GitHubConditions $repoCondition */
+		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
+		if (!empty($repoCondition)) {
+			$this->gitHubAPI->setHeader304($repoCondition->condition);
+		}
+	}
+
+	/**
+	 * Обновление (в БД) условия запроса к API GitHub. В заголовке ответа содержатся нужные значения для повторных запросов.
+	 *
+	 * @param string $forRepoItem
+	 */
+	private function updateConditionalRequest($forRepoItem)
+	{
+		if (!$this->gitHubAPI->isDoneRequest()) {
+			return;
+		}
+
+		$newCondition = '';
+		if (isset($this->gitHubAPI->header['Last-Modified'])) {
+			$newCondition = 'If-Modified-Since:' . $this->gitHubAPI->header['Last-Modified'];
+		} elseif (isset($this->gitHubAPI->header['ETag'])) {
+			$newCondition = 'If-None-Match:' . $this->gitHubAPI->header['ETag'];
+		}
+
+		/** @var Eloquent|GitHubConditions $repoCondition */
+		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
+
+		if ($newCondition == '') {
+			if (!empty($repoCondition)) {
+				$repoCondition->delete();
+			}
+
+			return;
+		}
+
+		if (empty($repoCondition)) {
+			$repoCondition = new GitHubConditions();
+			$repoCondition->repo_item = $forRepoItem;
+		}
+		$repoCondition->condition = $newCondition;
+		$repoCondition->save();
+	}
+
+
+	/**
+	 * @param array    $inData
 	 * @param Eloquent $classDB
 	 *
 	 * Сохранение или обновление данных в БД,
@@ -168,22 +253,17 @@ class FintechFabFromGitHub extends Command {
 		$item = new $classDB;
 		$keyName = $item->getKeyName();
 		$myName = $item->getMyName();
-		foreach($inData as $inItem)
-		{
+		foreach ($inData as $inItem) {
 			$item = $classDB::where($keyName, $inItem->$keyName)->first();
-			if(isset($item->$keyName))
-			{
+			if (isset($item->$keyName)) {
 				$this->info("Found $myName:" . $item->$keyName);
-				if($item->updateFromGitHub($inItem))
-				{
+				if ($item->updateFromGitHub($inItem)) {
 					$this->info("Update: " . $item->$keyName);
 					$item->save();
 				}
-			} else
-			{
+			} else {
 				$item = new $classDB;
-				if($item->dataGitHub($inItem))
-				{
+				if ($item->dataGitHub($inItem)) {
 					$this->info("Addition $myName: " . $inItem->$keyName);
 					$item->save();
 				}
