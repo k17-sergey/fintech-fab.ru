@@ -3,26 +3,26 @@
  *  Применение
  *
  *  начало:
- * 		$gitHubAPI = new GitHubAPI();
+ *        $gitHubAPI = new GitHubAPI();
  *      $gitHubAPI->setRepo($owner, $repository); //('fintech-fab', 'fintech-fab.ru');
  *
  * либо:
- * 		$gitHubAPI = new GitHubAPI($owner, $repository);
+ *        $gitHubAPI = new GitHubAPI($owner, $repository);
  *
  *
  * запросы:
  *      $gitHubAPI->setNewRepoQuery($contentOfRepository, $params); //('issues/comments') | ('')
- *		while($gitHubAPI->doNextRequest())
- *		{
+ *        while($gitHubAPI->doNextRequest())
+ *        {
  *            //
- *		}
+ *        }
  *
  *----------------------------------------------
  *
  *  Вывод сообщений  в команде "php artisan"
  *
- *			$this->info("Limit remaining: " . $gitHubAPI->getLimitRemaining());
- *			$this->info("Результат запроса: " . $gitHubAPI->messageOfResponse);
+ *            $this->info("Limit remaining: " . $gitHubAPI->getLimitRemaining());
+ *            $this->info("Результат запроса: " . $gitHubAPI->messageOfResponse);
  *
  *      //сообщения в случае неудач:
  *      if(! $gitHubAPI->isDoneRequest())
@@ -50,20 +50,21 @@ class GitHubAPI
 	 * @var string
 	 */
 	private $workRepo = '';
+
 	/**
-	 * @param string $owner  Владелец репозитория
-	 * @param string $repo   Репозиторий на GitHub'е
+	 * @param string $owner Владелец репозитория
+	 * @param string $repo  Репозиторий на GitHub'е
 	 */
 	public function __construct($owner = '', $repo = '')
 	{
-		if(! ($owner == '' || $repo == ''))
-		{
+		if (!($owner == '' || $repo == '')) {
 			$this->setRepo($owner, $repo);
 		}
 	}
+
 	/**
-	 * @param string $owner  Владелец репозитория
-	 * @param string $repo   Репозиторий на GitHub'е
+	 * @param string $owner Владелец репозитория
+	 * @param string $repo  Репозиторий на GitHub'е
 	 */
 	public function setRepo($owner, $repo)
 	{
@@ -72,25 +73,24 @@ class GitHubAPI
 
 
 	//Исполняемые запросы
-	private $startUrl = '';   //информативно, о первом запросе в цепочке запросов
+	private $startUrl = ''; //информативно, о первом запросе в цепочке запросов
 	private $currentUrl = ''; //подготовленный к выполнению
-	private $usedUrl = '';    //выполненный
-	private $isDone = false;  // выполнен ли запрос?
+	private $usedUrl = ''; //выполненный
+	private $isDone = false; // выполнен ли запрос?
 
 	/**
 	 * Завершение подготовки запроса.
 	 * Задается конкретное содержимое репозитория, о котором будет запрос к API GitHub
+	 *
 	 * @param string $repoData
 	 * @param string $params
 	 */
 	public function setNewRepoQuery($repoData = '', $params = '')
 	{
-		if($this->workRepo == '')
-		{
+		if ($this->workRepo == '') {
 			$this->startUrl = '';
 			$this->currentUrl = '';
-		}else
-		{
+		} else {
 			$repoData = ($repoData == '') ? '' : ('/' . $repoData);
 			$this->startUrl = $this->workRepo .
 				$repoData .
@@ -101,32 +101,51 @@ class GitHubAPI
 	}
 
 
+	/**  Для повторных запросов с заголовком If-None-Match или If-Modified-Since. Корректный статус ответа: 304.*/
+	private $conditional = '';
+
+	/**
+	 * Задается заголовок запроса к API GitHub, содержащий If-None-Match или If-Modified-Since
+	 * (ожидаемый статус ответа 304)
+	 *
+	 * @parameter string $conditionalRequest
+	 */
+	public function setHeader304($conditionalRequest)
+	{
+		$this->conditional = $conditionalRequest;
+	}
+
 	/**
 	 * Заголовок ответа
+	 *
 	 * @var array
 	 */
 	var $header = array();
 
 	/**
 	 * Данные ответа из GitHub API
+	 *
 	 * @var mixed
 	 */
 	var $response;
 
 	/**
 	 * Описание ошибки curl
+	 *
 	 * @var string
 	 */
 	var $error = '';
 
 	/**
 	 * Номер ошибки curl
+	 *
 	 * @var integer
 	 */
 	var $errno = 0;
 
 	/**
 	 * Сообщение о результате последнего запроса к API GitHub
+	 *
 	 * @var string
 	 */
 	var $messageOfResponse = '';
@@ -142,21 +161,20 @@ class GitHubAPI
 	public function doNextRequest()
 	{
 		$this->messageOfResponse = '';
-		if($this->currentUrl == '')
-		{
+		if ($this->currentUrl == '') {
 			return false;
 		}
 		$this->doGitHubRequest($this->currentUrl);
+
+		$this->conditional = ''; //Очистка "Conditional request"
 
 		//Запись инф-ции об использованном запросе
 		$this->usedUrl = $this->currentUrl;
 
 		//Подготовка следующего запроса
-		if(isset($this->header['Link']['next']))
-		{
+		if (isset($this->header['Link']['next'])) {
 			$this->currentUrl = $this->header['Link']['next'];
-		}else
-		{
+		} else {
 			$this->currentUrl = '';
 		}
 
@@ -180,6 +198,7 @@ class GitHubAPI
 	 * @param string $url
 	 *
 	 * Возврщает true если выполнено без ошибок
+	 *
 	 * @return bool
 	 */
 	private function doGitHubRequest($url)
@@ -197,13 +216,18 @@ class GitHubAPI
 		curl_setopt($ch, CURLOPT_USERAGENT, "fintech-fab");
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); //без перенаправлений на другой адрес
 
+		if ($this->conditional != '') {
+			curl_setopt($ch, CURLOPT_HTTPHEADER, array($this->conditional));
+		}
+
 
 		$response = curl_exec($ch);
-		if(curl_errno($ch) != 0){
+		if (curl_errno($ch) != 0) {
 			$this->error = curl_error($ch);
 			$this->errno = curl_errno($ch);
 			curl_close($ch);
 			$this->parseResponseStatus(0);
+
 			return false;
 		}
 
@@ -215,8 +239,7 @@ class GitHubAPI
 		preg_match_all('/(.+):(.+)\r\n/U', substr($response, 0, $pos), $strArray);
 
 		$this->header = array_combine($strArray[1], $strArray[2]);
-		if(isset($this->header["Link"]))
-		{
+		if (isset($this->header["Link"])) {
 			$this->header["Link"] = self::decodePageLinks($this->header["Link"]);
 		}
 
@@ -243,12 +266,12 @@ class GitHubAPI
 		$rel = ""; //Приходит из GitHub'а
 		$links = explode(",", $inLinks);
 		$pageLinks = array();
-		foreach($links as $strLink)
-		{
+		foreach ($links as $strLink) {
 			$link = explode(";", $strLink);
 			parse_str($link[1]);
 			$pageLinks[trim($rel, ' "')] = trim($link[0], " <>");
 		}
+
 		return $pageLinks;
 	}
 
@@ -260,8 +283,7 @@ class GitHubAPI
 	 */
 	private function parseResponseStatus($status)
 	{
-		switch($status)
-		{
+		switch ($status) {
 			case 0:
 				$this->messageOfResponse = "Error number: {$this->errno} \r\n{$this->error} \r\n";
 				break;
@@ -269,25 +291,21 @@ class GitHubAPI
 				$this->messageOfResponse = 'OK';
 				break;
 			case 304:
-				$this->messageOfResponse = 'Запрос выполнен успешно. Новых данных нет.';
+				$this->messageOfResponse = "Запрос выполнен успешно. Новых данных нет.\n";
 				break;
 			case 403:
-				if(isset($this->header['X-RateLimit-Remaining']))
-				{
-					if($this->header['X-RateLimit-Remaining'] == 0)
-					{
+				if (isset($this->header['X-RateLimit-Remaining'])) {
+					if ($this->header['X-RateLimit-Remaining'] == 0) {
 						$this->messageOfResponse .= "Лимит запросов исчерпан. \nВозобновить можно после: "
 							. date("c", $this->header['X-RateLimit-Reset']) . "\n";
 					}
 				}
 		}
-		if(!($status == 0 || $status == 200))
-		{
+		if (!($status == 0 || $status == 200)) {
 			$this->messageOfResponse .= isset($this->header['Status']) ?
 				"Status: {$this->header['Status']} \n" :
 				"Status: $status \n";
-			if(isset($this->response->message))
-			{
+			if (isset($this->response->message)) {
 				$this->messageOfResponse .= $this->response->message;
 			}
 		}
@@ -295,20 +313,18 @@ class GitHubAPI
 
 	/**
 	 * Лимит доступного количества запросов к API GitHub
+	 *
 	 * @return int
 	 */
 	public function getLimitRemaining()
 	{
-		if(! isset($this->header['X-RateLimit-Remaining']))
-		{
+		if (!isset($this->header['X-RateLimit-Remaining'])) {
 			$this->doGitHubRequest(self::BASE_URL . 'rate_limit');
 		}
 
-		if(isset($this->header['X-RateLimit-Remaining']))
-		{
+		if (isset($this->header['X-RateLimit-Remaining'])) {
 			return $this->header['X-RateLimit-Remaining'];
-		}else
-		{
+		} else {
 			return 0;
 		}
 
@@ -316,24 +332,22 @@ class GitHubAPI
 
 	/**
 	 * Лимит доступа к API GitHub
+	 *
 	 * @return string
 	 */
 	public function getLimit()
 	{
-		if(! isset($this->header['X-RateLimit-Remaining']))
-		{
+		if (!isset($this->header['X-RateLimit-Remaining'])) {
 			$this->doGitHubRequest(self::BASE_URL . 'rate_limit');
 		}
-		if(isset($this->header['X-RateLimit-Remaining']))
-		{
+		if (isset($this->header['X-RateLimit-Remaining'])) {
 			return (
 				"Rate limit: " . $this->header['X-RateLimit-Limit'] . "\r\n" .
 				"Limit remaining: " . $this->header['X-RateLimit-Remaining'] . "\r\n" .
-				'Limit reset: '. date("c", $this->header['X-RateLimit-Reset'])
+				'Limit reset: ' . date("c", $this->header['X-RateLimit-Reset'])
 			);
 
-		}else
-		{
+		} else {
 			return "";
 		}
 

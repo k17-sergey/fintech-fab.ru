@@ -3,7 +3,8 @@
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Database\Migrations\Migration;
 
-class CreateTablesForGithub extends Migration {
+class CreateTablesForGithub extends Migration
+{
 
 	/**
 	 * Run the migrations.
@@ -12,19 +13,13 @@ class CreateTablesForGithub extends Migration {
 	 */
 	public function up()
 	{
-		Schema::create('github_members', function(Blueprint $table)
-		{
-			//$table->increments('id');
-			//$table->string('login', 20)->unique();
+		Schema::create('github_members', function (Blueprint $table) {
 			$table->string('login', 20)->primary();
 			$table->string('avatar_url', 100)->default('');
 			$table->integer('contributions')->default(0);
 			$table->timestamps();
 		});
-		Schema::create('github_issues', function(Blueprint $table)
-		{
-			//$table->increments('id');
-			//$table->integer('number')->unique();
+		Schema::create('github_issues', function (Blueprint $table) {
 			$table->integer('number')->primary();
 			$table->string('html_url', 100);
 			$table->string('title', 100);
@@ -35,8 +30,7 @@ class CreateTablesForGithub extends Migration {
 			$table->string('user_login', 20);
 			$table->foreign('user_login')->references('login')->on('github_members');
 		});
-		Schema::create('github_comments', function(Blueprint $table)
-		{
+		Schema::create('github_comments', function (Blueprint $table) {
 			$table->integer('id')->unsigned()->primary(); //id из GitHub
 			$table->string('html_url', 100);
 			$table->integer('issue_number');
@@ -49,8 +43,7 @@ class CreateTablesForGithub extends Migration {
 		 * GET /issues/events
 		 *  event:referenced
 		 */
-		Schema::create('github_refcommits', function(Blueprint $table)
-		{
+		Schema::create('github_refcommits', function (Blueprint $table) {
 			$table->integer('id')->unsigned()->primary(); //id из GitHub
 			$table->string('commit_id', 40);
 			$table->string('actor_login', 20);

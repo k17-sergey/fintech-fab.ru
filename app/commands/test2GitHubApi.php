@@ -9,13 +9,16 @@ use Symfony\Component\Console\Input\InputArgument;
 //use Config;
 
 use FintechFab\Models\GitHubComments;
-//use FintechFab\Models\GitHubMembers;
+use FintechFab\Models\GitHubMembers;
+
 //use FintechFab\Models\GitHubRefcommits;
 //use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\IGitHubModel;
+use FintechFab\Models\GitHubConditions;
 use FintechFab\Components\GitHubAPI;
 
-class test2GitHubApi extends Command {
+class test2GitHubApi extends Command
+{
 
 	/** @var GitHubAPI */
 	private $gitHubAPI;
@@ -52,16 +55,16 @@ class test2GitHubApi extends Command {
 	public function fire()
 	{
 		$helpOption = $this->option('helpArg');
-		if(! empty($helpOption))
-		{
+		if (!empty($helpOption)) {
 			$this->showHelp($helpOption);
+
 			return;
 		}
 		$res = array();
 
 		$this->info("It's OK. Begin...");
 
-		switch($this->argument('dataCategory')) {
+		switch ($this->argument('dataCategory')) {
 			case "comments":
 				//SELECT DATE_FORMAT(max(`updated`), "%Y-%m-%dT%h:%i:%sZ") AS maxCreated FROM `github_comments`
 				$maxDate = GitHubComments::max('updated');
@@ -76,7 +79,7 @@ class test2GitHubApi extends Command {
 				break;
 			case "issues":
 				$this->gitHubAPI->setNewRepoQuery("issues", "state=all");
-				if($this->gitHubAPI->doNextRequest())	{
+				if ($this->gitHubAPI->doNextRequest()) {
 					$res = $this->editData($this->gitHubAPI->response, 'issuesData');
 					$this->info("Limit remaining: " . $this->gitHubAPI->getLimitRemaining());
 				}
@@ -86,6 +89,18 @@ class test2GitHubApi extends Command {
 			case "issuesEvents":
 				break;
 			case "users":
+				$this->gitHubAPI->setNewRepoQuery('contributors');
+				//$this->gitHubAPI->setHeader304('If-Modified-Since: Wed, 23 Jul 2014 10:06:46 GMT');
+				$this->prepareCondition('contributors');
+				$res[] = $this->processTheData(GitHubMembers::class);
+				$this->updateConditionalRequest('contributors');
+
+
+				$this->gitHubAPI->setNewRepoQuery('assignees');
+				$this->prepareCondition('assignees');
+				$res[] = $this->processTheData(GitHubMembers::class);
+				$this->updateConditionalRequest('assignees');
+
 				break;
 			default:
 				//$maxDate = strtotime(GitHubComments::max('updated'));
@@ -105,9 +120,9 @@ class test2GitHubApi extends Command {
 				//Преобразование к нужному формату времени с заданной временной зоной
 				$res[] = date('Y-m-d\TH:i:s\Z', strtotime($strDate) - date('Z'));
 
-				//$res[] = date('U', strtotime($strMaxDate));
-				//$res[] =  "since='" . substr(date('c', $maxDate - 1), 0, 19) . "Z'";
-				//$res[] = str_replace(" ", "T", $strMaxDate) . "Z";
+			//$res[] = date('U', strtotime($strMaxDate));
+			//$res[] =  "since='" . substr(date('c', $maxDate - 1), 0, 19) . "Z'";
+			//$res[] = str_replace(" ", "T", $strMaxDate) . "Z";
 
 			//$res[] = date_parse(GitHubComments::find(50851238)->updated);
 
@@ -120,13 +135,19 @@ class test2GitHubApi extends Command {
 		$this->info($d);
 
 		$this->info($this->gitHubAPI->getLastUrl());
+		if (isset($this->gitHubAPI->header['ETag'])) {
+			$this->info($this->gitHubAPI->header['ETag']);
+		}
+		if (isset($maxDate)) {
+			$this->info(date('r', strtotime($maxDate)));
+		}
 
 		//$this->info(print_r($res, true));
 		//$this->info($this->gitHubAPI->getLimit());
 
 
-
 	}
+
 
 	/**
 	 * Get the console command arguments.
@@ -154,6 +175,7 @@ class test2GitHubApi extends Command {
 
 	/**
 	 * Выводит на экран список используемых значений аргумента или детально по указанному значению
+	 *
 	 * @param string $option
 	 */
 	private function showHelp($option)
@@ -166,26 +188,24 @@ class test2GitHubApi extends Command {
 	//}
 
 	/**
-	 * @param $dataModel
-	 * @param string        $func
+	 * @param        $dataModel
+	 * @param string $func
 	 *
 	 * @return array
 	 */
 	private function processTheData($dataModel, $func = '')
 	{
 		$res = array();
-		while($this->gitHubAPI->doNextRequest())
-		{
+		while ($this->gitHubAPI->doNextRequest()) {
 			$this->info("Limit remaining: " . $this->gitHubAPI->getLimitRemaining());
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-			if($func != ''){
+			if ($func != '') {
 				//$res[] = $this->editData($this->gitHubAPI->response, $func);
 			}
 
 			$this->saveInDB($this->gitHubAPI->response, $dataModel);
 		}
-		if(! $this->gitHubAPI->isDoneRequest())
-		{
+		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 
@@ -193,10 +213,62 @@ class test2GitHubApi extends Command {
 	}
 
 
+	/**
+	 * Обновление в БД условия запроса к API GitHub. В заголовке ответа содержатся соответствующие значения.
+	 *
+	 * @param string $forRepoItem
+	 */
+	private function updateConditionalRequest($forRepoItem)
+	{
+		if (!$this->gitHubAPI->isDoneRequest()) {
+			return;
+		}
+
+		$newCondition = '';
+		if (isset($this->gitHubAPI->header['Last-Modified'])) {
+			$newCondition = 'If-Modified-Since:' . $this->gitHubAPI->header['Last-Modified'];
+		} elseif (isset($this->gitHubAPI->header['ETag'])) {
+			$newCondition = 'If-None-Match:' . $this->gitHubAPI->header['ETag'];
+		}
+
+		/** @var Eloquent|GitHubConditions $repoCondition */
+		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
+
+		if ($newCondition == '') {
+			if (!empty($repoCondition)) {
+				$repoCondition->delete();
+			}
+
+			return;
+		}
+
+		if (empty($repoCondition)) {
+			$repoCondition = new GitHubConditions();
+			$repoCondition->repo_item = $forRepoItem;
+		}
+		$repoCondition->condition = $newCondition;
+		$repoCondition->save();
+
+	}
+
+	/**
+	 * Подготовка условия (если есть) для запроса к API GitHub, передаваемое в заголовке.
+	 *
+	 * @param string $forRepoItem
+	 */
+	private function prepareCondition($forRepoItem)
+	{
+		/** @var Eloquent|GitHubConditions $repoCondition */
+		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
+		if (!empty($repoCondition)) {
+			$this->gitHubAPI->setHeader304($repoCondition->condition);
+		}
+
+	}
 
 
 	/**
-	 * @param array $inData
+	 * @param array    $inData
 	 * @param Eloquent $classDB
 	 *
 	 * Сохранение или обновление данных в БД,
@@ -218,22 +290,17 @@ class test2GitHubApi extends Command {
 		$item = new $classDB();
 		$keyName = $item->getKeyName();
 		$myName = $item->getMyName();
-		foreach($inData as $inItem)
-		{
+		foreach ($inData as $inItem) {
 			$item = $classDB::where($keyName, $inItem->$keyName)->first();
-			if(isset($item->$keyName))
-			{
+			if (isset($item->$keyName)) {
 				$this->info("Found $myName:" . $item->$keyName);
-				if($item->updateFromGitHub($inItem))
-				{
+				if ($item->updateFromGitHub($inItem)) {
 					$this->info("Update: " . $item->$keyName);
 					$item->save();
 				}
-			} else
-			{
+			} else {
 				$item = new $classDB();
-				if($item->dataGitHub($inItem))
-				{
+				if ($item->dataGitHub($inItem)) {
 					$this->info("Addition $myName: " . $inItem->$keyName);
 					$item->save();
 				}
@@ -244,14 +311,14 @@ class test2GitHubApi extends Command {
 
 	private function editData($inDataArray, $func)
 	{
-		if(! is_array($inDataArray)){
+		if (!is_array($inDataArray)) {
 			return "";
 		}
 		$res = array();
-		foreach($inDataArray as $inData)
-		{
+		foreach ($inDataArray as $inData) {
 			$res[] = self::$func($inData);
 		}
+
 		return $res;
 	}
 
@@ -276,65 +343,80 @@ class test2GitHubApi extends Command {
 		$x['type'] = $inData->type;
 		$x['actorLogin'] = $inData->actor->login;
 		$x['created_at'] = $inData->created_at;
-		switch($inData->type)
-		{
+		switch ($inData->type) {
 			case "CommitCommentEvent":
 				$x['payload'] = array(
 					'commentId' => $inData->payload->comment->id,
-					'comment' => $inData->payload->comment->html_url
+					'comment'   => $inData->payload->comment->html_url
 				);
 				break;
 			case "CreateEvent":
 				$x['payload'] = array(
-					'ref' => $inData->payload->ref,
+					'ref'      => $inData->payload->ref,
 					'ref_type' => $inData->payload->ref_type
 				);
 				break;
 			case "DeleteEvent":
 				$x['payload'] = array(
-					'ref' => $inData->payload->ref,
+					'ref'      => $inData->payload->ref,
 					'ref_type' => $inData->payload->ref_type
 				);
 				break;
-			case "DeploymentEvent": break;
-			case "DeploymentStatusEvent": break;
-			case "DownloadEvent": break;
-			case "FollowEvent": break;
-			case "ForkEvent": break; //-
-			case "ForkApplyEvent": break;
-			case "GistEvent": break;
-			case "GollumEvent": break;
+			case "DeploymentEvent":
+				break;
+			case "DeploymentStatusEvent":
+				break;
+			case "DownloadEvent":
+				break;
+			case "FollowEvent":
+				break;
+			case "ForkEvent":
+				break; //-
+			case "ForkApplyEvent":
+				break;
+			case "GistEvent":
+				break;
+			case "GollumEvent":
+				break;
 			case "IssueCommentEvent":
 				$x['payload'] = array(
-					'action' => $inData->payload->action,
-					'issueNumber' => $inData->payload->issue->number,
+					'action'          => $inData->payload->action,
+					'issueNumber'     => $inData->payload->issue->number,
 					'commentHtml_url' => $inData->payload->comment->html_url
 				);
 				break;
 			case "IssuesEvent":
 				$x['payload'] = array(
-					'action' => $inData->payload->action,
+					'action'      => $inData->payload->action,
 					'issueNumber' => $inData->payload->issue->number
 				);
 				break;
-			case "MemberEvent": break;
-			case "PageBuildEvent": break;
-			case "PublicEvent": break;
-			case "PullRequestEvent": break;
-			case "PullRequestReviewCommentEvent": break;
+			case "MemberEvent":
+				break;
+			case "PageBuildEvent":
+				break;
+			case "PublicEvent":
+				break;
+			case "PullRequestEvent":
+				break;
+			case "PullRequestReviewCommentEvent":
+				break;
 			case "PushEvent":
 				$x['payload'] = array(
 					'push_id' => $inData->payload->push_id,
-					'ref' => $inData->payload->ref,
-					'head' => $inData->payload->head
+					'ref'     => $inData->payload->ref,
+					'head'    => $inData->payload->head
 				);
 				break;
-			case "ReleaseEvent": break;
-			case "StatusEvent": break;
-			case "TeamAddEvent": break;
-			case "WatchEvent": break;
+			case "ReleaseEvent":
+				break;
+			case "StatusEvent":
+				break;
+			case "TeamAddEvent":
+				break;
+			case "WatchEvent":
+				break;
 		}
-
 
 
 		return $x;
@@ -346,7 +428,7 @@ class test2GitHubApi extends Command {
 		$x['id'] = $inData->id;
 		$x['html_url'] = $inData->html_url;
 		$n = explode('/', $inData->issue_url);
-		$x['issue_number'] = $n[count($n)-1];
+		$x['issue_number'] = $n[count($n) - 1];
 		$x['created_at'] = $inData->created_at;
 		$x['updated_at'] = $inData->updated_at;
 		$x['userLogin'] = $inData->user->login;
@@ -354,6 +436,7 @@ class test2GitHubApi extends Command {
 		$x['prevbody'] = (mb_strlen($body) > 27)
 			? (mb_substr($body, 0, 26) . "...")
 			: $body;
+
 		return $x;
 
 	}
@@ -376,6 +459,7 @@ class test2GitHubApi extends Command {
 		$x['commit_id'] = $inData->commit_id;
 		$x['created_at'] = $inData->created_at;
 		$x['issueNumber'] = $inData->issue->number;
+
 		return $x;
 	}
 
@@ -390,6 +474,7 @@ class test2GitHubApi extends Command {
 		$x['updated_at'] = $inData->updated_at;
 		$x['closed_at'] = self::isNull($inData->closed_at);
 		$x['user'] = $inData->user->login;
+
 		return $x;
 
 	}
@@ -402,23 +487,23 @@ class test2GitHubApi extends Command {
 	 */
 	private static function isNull($inVal = null, $val = '')
 	{
-		if(is_array($inVal))
-		{
-			if(empty($inVal[0])){
+		if (is_array($inVal)) {
+			if (empty($inVal[0])) {
 				return '';
 			} else {
 				$x = $inVal[0];
-				for($i = 1; $i < count($inVal); $i++)
-				{
-					if(empty($x->$inVal[$i])){
+				for ($i = 1; $i < count($inVal); $i++) {
+					if (empty($x->$inVal[$i])) {
 						return '';
 					} else {
 						$x = $x->$inVal[$i];
 					}
 				}
+
 				return $x;
 			}
 		}
+
 		return empty($inVal) ? $val : $inVal;
 	}
 
