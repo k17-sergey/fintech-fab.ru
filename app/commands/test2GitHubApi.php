@@ -72,6 +72,7 @@ class test2GitHubApi extends Command
 				$this->gitHubAPI->setNewRepoQuery('issues/comments', $param);
 				//$this->gitHubAPI->setNewRepoQuery('issues/comments',  "since='2014-08-01T05:51:34Z'");
 				$res = $this->processTheData(GitHubComments::class, 'issuesCommentsData');
+				$this->info($this->gitHubAPI->getLimit());
 				break;
 			case "commits":
 				break;
@@ -200,10 +201,12 @@ class test2GitHubApi extends Command
 			$this->info("Limit remaining: " . $this->gitHubAPI->getLimitRemaining());
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 			if ($func != '') {
-				//$res[] = $this->editData($this->gitHubAPI->response, $func);
+				$res[] = $this->editData($this->gitHubAPI->response, $func);
+			} else {
+				$this->saveInDB($this->gitHubAPI->response, $dataModel);
 			}
 
-			$this->saveInDB($this->gitHubAPI->response, $dataModel);
+
 		}
 		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);

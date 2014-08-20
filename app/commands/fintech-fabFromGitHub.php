@@ -2,6 +2,7 @@
 
 use FintechFab\Components\GitHubAPI;
 use FintechFab\Models\GitHubComments;
+use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\GitHubMembers;
 use FintechFab\Models\GitHubConditions;
 use FintechFab\Models\IGitHubModel;
@@ -75,6 +76,13 @@ class FintechFabFromGitHub extends Command
 			case "events":
 				break;
 			case "issues":
+				$maxDate = GitHubIssues::max('updated'); //Максимальная дата, полученная с GitHub'а
+				//В парметре — запрос на новые данные
+				$param = empty($maxDate) ? "" :
+					"state=all&since='" . str_replace(" ", "T", $maxDate) . "Z'";
+
+				$this->gitHubAPI->setNewRepoQuery('issues', $param);
+				$this->processTheData(GitHubIssues::class);
 				break;
 			case "issuesEvents":
 				break;
