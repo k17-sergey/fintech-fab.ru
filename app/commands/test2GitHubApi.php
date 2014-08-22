@@ -12,7 +12,7 @@ use FintechFab\Models\GitHubComments;
 use FintechFab\Models\GitHubMembers;
 
 //use FintechFab\Models\GitHubRefcommits;
-//use FintechFab\Models\GitHubIssues;
+use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\IGitHubModel;
 use FintechFab\Models\GitHubConditions;
 use FintechFab\Components\GitHubAPI;
@@ -103,6 +103,20 @@ class test2GitHubApi extends Command
 				$this->updateConditionalRequest('assignees');
 
 				break;
+			case "test":
+				$issues = GitHubIssues::whereRaw("closed is null")->get();
+				foreach ($issues as $item) {
+					$issue = new \stdClass;
+					//$issue->number = $item->number;
+					//$issue->title = $item->title;
+					//$issue->openedByUser = $item->user_login;
+					$issue->head = $item;
+					$issue->comments = array("Comment");
+
+					$res[] = $issue;
+				}
+
+				break;
 			default:
 				//$maxDate = strtotime(GitHubComments::max('updated'));
 				$strMaxDate = GitHubComments::max('created');
@@ -131,9 +145,11 @@ class test2GitHubApi extends Command
 		}
 
 		ob_start();
+		//print_r($res);
 		var_dump($res);
 		$d = ob_get_clean();
 		$this->info($d);
+		$this->info($res[2]->head->title);
 
 		$this->info($this->gitHubAPI->getLastUrl());
 		if (isset($this->gitHubAPI->header['ETag'])) {

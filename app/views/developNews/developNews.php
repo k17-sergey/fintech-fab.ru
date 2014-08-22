@@ -1,8 +1,21 @@
 <?php
 /**
  * @var integer $inTime
+ * @var         $eventData
+ * @var         $issuesData
  */
+
 ?>
+<script>
+	$(function () {
+		$("#tabs").tabs();
+		$("#issues_accordion").accordion({
+			collapsible: true,
+			heightStyle: "content"
+		});
+	});
+
+</script>
 <div class="jumbotron">
 	<h2>События разработки сайта</h2>
 
@@ -47,44 +60,38 @@
 				</div>
 			</div>
 
-
-
-
 	</div>
 	<?= Form::close(); ?>
 
 
+	<div id="tabs">
+		<ul class="nav nav-tabs">
+			<li class="active">
+				<a href="#tab1" data-toggle="tab">Общие события</a>
+			</li>
+			<li>
+				<a href="#tab2" data-toggle="tab">Задачи</a>
+			</li>
 
-	<ul class="nav nav-tabs">
-	<li class="active">
-		<a href="#tab1" data-toggle="tab">Общие события</a>
-	</li>
-	<li>
-		<a href="#tab2" data-toggle="tab">Задачи</a>
-	</li>
-
-</ul>
+		</ul>
 
 
-<div class="tab-content">
-	<div class="tab-pane active" id="tab1">
+		<div class="tab-content">
+			<div class="tab-pane active" id="tab1">
 
-		<?=View::make('developNews.events', array('inTime' => $inTime)) ?>
+				<?= View::make('developNews.events', array('eventData' => $eventData)) ?>
+
+			</div>
+
+			<div class="tab-pane" id="tab2">
+
+				<?= View::make('developNews.issuesEvents', array('issuesData' => $issuesData)) ?>
+
+			</div>
+
+		</div>
 
 	</div>
-
-	<div class="tab-pane" id="tab2">
-
-		<?=View::make('developNews.issuesEvents', array('inTime' => $inTime)) ?>
-
-	</div>
-
-</div>
-
-
-
-
-
 
 
 </div>
