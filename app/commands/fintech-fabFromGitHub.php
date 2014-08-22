@@ -4,6 +4,7 @@ use FintechFab\Components\GitHubAPI;
 use FintechFab\Models\GitHubComments;
 use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\GitHubMembers;
+use FintechFab\Models\GitHubRefcommits;
 use FintechFab\Models\GitHubConditions;
 use FintechFab\Models\IGitHubModel;
 use Illuminate\Console\Command;
@@ -85,6 +86,7 @@ class FintechFabFromGitHub extends Command
 				$this->processTheData(GitHubIssues::class);
 				break;
 			case "issuesEvents":
+				$this->issuesEvents();
 				break;
 			case "users":
 				$this->usersData('contributors');
@@ -167,6 +169,70 @@ class FintechFabFromGitHub extends Command
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 	}
+
+	/**
+	 * Получение из GitHub’а и добавление в БД коммитов, имеющих ссылку на конкретные задачи.
+	 */
+	private function issuesEvents()
+	{
+		$maxDateStr = GitHubRefcommits::max('created'); //Максимальная дата в БД
+		$maxDate = empty($maxDateStr) ? 0 : strtotime(str_replace(" ", "T", $maxDateStr) . "Z");
+
+		$this->gitHubAPI->setNewRepoQuery("issues/events");
+		$isContinue = true;
+		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+
+			$isContinue = $this->issuesEvents_timeFilter($maxDate);
+			$this->saveInDB($this->gitHubAPI->response, GitHubRefcommits::class);
+		}
+		if (!$this->gitHubAPI->isDoneRequest()) {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+
+		//Добавление сообщений коммитов
+		$refCommits = GitHubRefcommits::where('message', '')->get();
+		foreach ($refCommits as $issueCommit) {
+			$this->gitHubAPI->setNewRepoQuery("git/commits/" . $issueCommit->commit_id);
+			if ($this->gitHubAPI->doNextRequest()) {
+				$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+				$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+
+				if ($issueCommit->updateFromGitHub($this->gitHubAPI->response)) {
+					$this->info('Adding commit message: ' . substr($issueCommit->message, 0, 60));
+					$issueCommit->save();
+				}
+			} else {
+				$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			}
+		}
+
+	}
+
+	/**
+	 * @param integer $filterDate
+	 *
+	 * @return bool   При значении true — разрешено загружать следующие страницы из API GitHub
+	 */
+	private function issuesEvents_timeFilter($filterDate)
+	{
+		if ($filterDate == 0) {
+			return true;
+		}
+
+		$maxIndex = count($this->gitHubAPI->response) - 1;
+		for ($i = $maxIndex; $i >= 0; $i--) {
+			if ($filterDate >= strtotime($this->gitHubAPI->response[$i]->created_at)) {
+				array_pop($this->gitHubAPI->response);
+			} else {
+				break;
+			}
+		}
+
+		return ($maxIndex == (count($this->gitHubAPI->response) - 1));
+	}
+
 
 	/**
 	 * Загрузка всех данных и вывод сообщений
