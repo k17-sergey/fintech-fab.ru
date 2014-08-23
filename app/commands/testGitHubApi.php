@@ -77,7 +77,8 @@ class testGitHubApi extends Command
 				}
 				break;
 			case "commits":
-				$res = $this->getFromGitHubApi($this->apiRepos . "commits?since=" . $qDate, "commitsData");
+				//$res = $this->getFromGitHubApi($this->apiRepos . "commits?since=" . $qDate, "commitsData");
+				$res = $this->getFromGitHubApi($this->apiRepos . "commits", "commitsData");
 				break;
 			case "events":
 				$res = $this->getFromGitHubApi($this->apiRepos . "events?page=2", "eventsData");

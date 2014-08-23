@@ -1,6 +1,6 @@
 <?php
 /**
- * @var $issuesData
+ * @var array $issuesData
  */
 ?>
 
@@ -17,7 +17,8 @@
 
 			</p>
 
-			<div><span>Комментарии:</span>
+			<div>
+				<h4>Комментарии:</h4>
 				<ul>
 					<?php foreach ($issue->comments as $comment): ?>
 
@@ -31,6 +32,24 @@
 					<?php endforeach; ?>
 				</ul>
 			</div>
+
+			<div>
+				<h4>Коммиты:</h4>
+				<ul>
+					<?php foreach ($issue->commits as $commit): ?>
+
+						<li>
+							<img width="16" height="16" src="<?= $commit->avatar_url ?>">
+							<small><?= $commit->time ?></small>
+							<b><?= $commit->actor_login ?></b>
+
+							<p><em><?= $commit->message ?></em></p>
+
+						</li>
+					<?php endforeach; ?>
+				</ul>
+			</div>
+
 
 		</div>
 

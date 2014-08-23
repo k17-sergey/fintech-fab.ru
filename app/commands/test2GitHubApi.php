@@ -12,7 +12,7 @@ use FintechFab\Models\GitHubComments;
 use FintechFab\Models\GitHubMembers;
 
 use FintechFab\Models\GitHubRefcommits;
-use FintechFab\Models\GitHubIssues;
+//use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\IGitHubModel;
 use FintechFab\Models\GitHubConditions;
 use FintechFab\Components\GitHubAPI;
@@ -106,17 +106,24 @@ class test2GitHubApi extends Command
 
 				break;
 			case "test":
-				$issues = GitHubIssues::whereRaw("closed is null")->get();
-				foreach ($issues as $item) {
-					$issue = new \stdClass;
-					//$issue->number = $item->number;
-					//$issue->title = $item->title;
-					//$issue->openedByUser = $item->user_login;
-					$issue->head = $item;
-					$issue->comments = array("Comment");
+				$commits = GitHubRefcommits::whereIssueNumber("14")
+					//->where('created', '>', $timeRequest)
+					->orderBy('created', 'desc')
+					->get();
 
-					$res[] = $issue;
+				$res = array();
+				/** @var GitHubRefcommits $commit */
+				foreach ($commits as $commit) {
+					$localtime = date('H:i:s d.m.Y', strtotime(str_replace(" ", "T", $commit->created) . "Z"));
+					$out = new \stdClass();
+					$out->actor_login = $commit->actor_login;
+					$out->time = $localtime;
+					$out->message = $commit->message;
+					$out->avatar_url = GitHubMembers::find($commit->actor_login)->avatar_url;
+
+					$res[] = $out;
 				}
+
 
 				break;
 			default:
