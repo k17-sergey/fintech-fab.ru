@@ -89,8 +89,8 @@ class FintechFabFromGitHub extends Command
 				$this->issuesEvents();
 				break;
 			case "users":
-				$this->usersData('contributors');
-				$this->usersData('assignees'); //Группа подписчиков
+				$this->usersData('contributors'); //Who has contributed to a project by having a pull request merged but does not have collaborator access.
+				$this->usersData('assignees'); //Who is working on specific issues and pull requests in your project.
 				break;
 			case "rateLimit":
 				//Получение инф. о лимите запросов
@@ -172,6 +172,7 @@ class FintechFabFromGitHub extends Command
 
 	/**
 	 * Получение из GitHub’а и добавление в БД коммитов, имеющих ссылку на конкретные задачи.
+	 * В принятых данных, коммиты обозначены как события 'referenced'
 	 */
 	private function issuesEvents()
 	{
@@ -179,17 +180,7 @@ class FintechFabFromGitHub extends Command
 		$maxDate = empty($maxDateStr) ? 0 : strtotime(str_replace(" ", "T", $maxDateStr) . "Z");
 
 		$this->gitHubAPI->setNewRepoQuery("issues/events");
-		$isContinue = true;
-		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
-			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-
-			$isContinue = $this->issuesEvents_timeFilter($maxDate);
-			$this->saveInDB($this->gitHubAPI->response, GitHubRefcommits::class);
-		}
-		if (!$this->gitHubAPI->isDoneRequest()) {
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-		}
+		$this->processTheData(GitHubRefcommits::class, $maxDate, 'created_at');
 
 		//Добавление сообщений коммитов
 		$refCommits = GitHubRefcommits::where('message', '')->get();
@@ -207,30 +198,6 @@ class FintechFabFromGitHub extends Command
 				$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 			}
 		}
-
-	}
-
-	/**
-	 * @param integer $filterDate
-	 *
-	 * @return bool   При значении true — разрешено загружать следующие страницы из API GitHub
-	 */
-	private function issuesEvents_timeFilter($filterDate)
-	{
-		if ($filterDate == 0) {
-			return true;
-		}
-
-		$maxIndex = count($this->gitHubAPI->response) - 1;
-		for ($i = $maxIndex; $i >= 0; $i--) {
-			if ($filterDate >= strtotime($this->gitHubAPI->response[$i]->created_at)) {
-				array_pop($this->gitHubAPI->response);
-			} else {
-				break;
-			}
-		}
-
-		return ($maxIndex == (count($this->gitHubAPI->response) - 1));
 	}
 
 
@@ -239,9 +206,17 @@ class FintechFabFromGitHub extends Command
 	 * Объект $this->gitHubAPI должен быть заранее подготовлен к запросам.
 	 *
 	 * @param Eloquent $dataModel
+	 * @param int      $filterDate
+	 * @param string   $fieldName
 	 */
-	private function processTheData($dataModel)
+	private function processTheData($dataModel, $filterDate = 0, $fieldName = 'updated_at')
 	{
+		if ($filterDate > 0) {
+			$this->processTheDataWithFilter($dataModel, $filterDate, $fieldName);
+
+			return;
+		}
+
 		while ($this->gitHubAPI->doNextRequest()) {
 			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
@@ -250,6 +225,56 @@ class FintechFabFromGitHub extends Command
 		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
+
+		return;
+	}
+
+	/** Получение и обработка данных с ограничением по дате
+	 *
+	 * @param Eloquent $dataModel
+	 * @param int      $filterDate
+	 * @param string   $fieldName Поле принятых даных, содержащих дату-время
+	 */
+	private function processTheDataWithFilter($dataModel, $filterDate, $fieldName)
+	{
+		$isContinue = true;
+		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+
+			$isContinue = $this->timeFilter($filterDate, $fieldName);
+			$this->saveInDB($this->gitHubAPI->response, $dataModel);
+		}
+		if (!$this->gitHubAPI->isDoneRequest()) {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+	}
+
+	/**
+	 * Ограничивает принимаемые данные, типа "WHERE DateValue > $filterDate"
+	 * Обрабатывает принятые данные (предполагаются упорядоченными по-убыванию значений даты-времени, как это обычно происходит из API GitHub'а)
+	 *
+	 * @param integer $filterDate
+	 * @param string  $fieldName
+	 *
+	 * @return bool   При значении true — разрешено загружать следующие страницы из API GitHub
+	 */
+	private function timeFilter($filterDate, $fieldName = 'updated_at')
+	{
+		if ($filterDate == 0) {
+			return true;
+		}
+
+		$maxIndex = count($this->gitHubAPI->response) - 1;
+		for ($i = $maxIndex; $i >= 0; $i--) {
+			if ($filterDate >= strtotime($this->gitHubAPI->response[$i]->$fieldName)) {
+				array_pop($this->gitHubAPI->response);
+			} else {
+				break;
+			}
+		}
+
+		return ($maxIndex == (count($this->gitHubAPI->response) - 1));
 	}
 
 	/**
