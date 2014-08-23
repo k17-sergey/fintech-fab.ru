@@ -1,11 +1,11 @@
 <?php
 /**
- * @var integer $inTime
+ * @var $eventData
  */
 ?>
 
-	<div class="row">
-<p style="text-align: center">Общие события. В разработке...</p>
+<div class="row">
+	<p style="text-align: center">Общие события. <br>В разработке...</p>
 
-	</div>
+</div>
 

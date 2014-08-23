@@ -17,7 +17,8 @@ use Eloquent;
  * @property integer $issue_number
  * @property string  $message
  *
-  */
+ * @method GitHubRefcommits whereIssueNumber static
+ */
 class GitHubRefcommits extends Eloquent implements IGitHubModel
 {
 	public $timestamps = false;
