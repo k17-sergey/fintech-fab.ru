@@ -70,7 +70,7 @@ class FintechFabFromGitHub extends Command
 				$param = empty($maxDate) ? "" : "since='" . str_replace(" ", "T", $maxDate) . "Z'";
 
 				$this->gitHubAPI->setNewRepoQuery('issues/comments', $param);
-				$this->processTheData(GitHubComments::class);
+				$this->processTheData(GitHubComments::class, empty($maxDate) ? 0 : strtotime(str_replace(" ", "T", $maxDate) . "Z"));
 				break;
 			case "commits":
 				break;
@@ -205,37 +205,13 @@ class FintechFabFromGitHub extends Command
 	 * Загрузка всех данных и вывод сообщений
 	 * Объект $this->gitHubAPI должен быть заранее подготовлен к запросам.
 	 *
-	 * @param Eloquent $dataModel
-	 * @param int      $filterDate
-	 * @param string   $fieldName
-	 */
-	private function processTheData($dataModel, $filterDate = 0, $fieldName = 'updated_at')
-	{
-		if ($filterDate > 0) {
-			$this->processTheDataWithFilter($dataModel, $filterDate, $fieldName);
-
-			return;
-		}
-
-		while ($this->gitHubAPI->doNextRequest()) {
-			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-			$this->saveInDB($this->gitHubAPI->response, $dataModel);
-		}
-		if (!$this->gitHubAPI->isDoneRequest()) {
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-		}
-
-		return;
-	}
-
-	/** Получение и обработка данных с ограничением по дате
+	 * Ограничение по дате, типа "WHERE DateValue > $filterDate"
 	 *
 	 * @param Eloquent $dataModel
-	 * @param int      $filterDate
+	 * @param integer  $filterDate
 	 * @param string   $fieldName Поле принятых даных, содержащих дату-время
 	 */
-	private function processTheDataWithFilter($dataModel, $filterDate, $fieldName)
+	private function processTheData($dataModel, $filterDate = 0, $fieldName = 'updated_at')
 	{
 		$isContinue = true;
 		while ($isContinue && $this->gitHubAPI->doNextRequest()) {

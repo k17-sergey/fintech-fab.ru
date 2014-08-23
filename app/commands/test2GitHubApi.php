@@ -478,7 +478,8 @@ class test2GitHubApi extends Command
 			case "IssuesEvent":
 				$x['payload'] = array(
 					'action'      => $inData->payload->action,
-					'issueNumber' => $inData->payload->issue->number
+					'issueNumber' => $inData->payload->issue->number,
+					'issueTitle'  => $inData->payload->issue->title
 				);
 				break;
 			case "MemberEvent":
