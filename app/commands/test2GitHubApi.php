@@ -10,6 +10,7 @@ use Symfony\Component\Console\Input\InputArgument;
 
 use FintechFab\Models\GitHubComments;
 use FintechFab\Models\GitHubMembers;
+use FintechFab\Models\GitHubEvents;
 
 use FintechFab\Models\GitHubRefcommits;
 //use FintechFab\Models\GitHubIssues;
@@ -77,6 +78,7 @@ class test2GitHubApi extends Command
 			case "commits":
 				break;
 			case "events":
+				$this->events();
 				break;
 			case "issues":
 				$this->gitHubAPI->setNewRepoQuery("issues", "state=all");
@@ -209,6 +211,49 @@ class test2GitHubApi extends Command
 		//
 	}
 
+	private function events()
+	{
+		$maxDate = strtotime('2013-07-01T05:51:34Z');
+		$this->gitHubAPI->setNewRepoQuery('events');
+		$this->gitHubAPI->doNextRequest();
+		//$res['response'] = $this->gitHubAPI->response;
+		//$res['header'] = $this->gitHubAPI->header;
+		$res = array();
+
+
+		$isContinue = true;
+		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			$isContinue = $this->issuesEvents_TimeFilter($maxDate);
+
+
+			$response = array();
+			foreach ($this->gitHubAPI->response as $item) {
+				if (GitHubEvents::isAcceptData($item)) {
+					$response[] = $item;
+				}
+				$this->gitHubAPI->response = $response;
+			}
+
+
+			$fullRes = new \stdClass();
+			$fullRes->header = $this->gitHubAPI->header;
+			//$fullRes->response = $this->gitHubAPI->response;
+			$fullRes->response = $this->editData($this->gitHubAPI->response, 'eventsData');
+			$res[] = $fullRes;
+
+
+			//$this->saveInDB($this->gitHubAPI->response, GitHubEvents::class);
+		}
+		if (!$this->gitHubAPI->isDoneRequest()) {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+		print_r($res);
+
+
+	}
+
 	/**
 	 * Получение из GitHub’а и добавление в БД коммитов, имеющих ссылку на конкретные задачи.
 	 */
@@ -271,8 +316,9 @@ class test2GitHubApi extends Command
 				break;
 			}
 		}
+		$this->info("new maxIndex = " . count($this->gitHubAPI->response));
 
-		return ($maxIndex == count($this->gitHubAPI->response));
+		return ($maxIndex == count($this->gitHubAPI->response) - 1);
 	}
 
 	/**
@@ -434,23 +480,29 @@ class test2GitHubApi extends Command
 		$x['actorLogin'] = $inData->actor->login;
 		$x['created_at'] = $inData->created_at;
 		switch ($inData->type) {
-			case "CommitCommentEvent":
+			case "CommitCommentEvent": // -
 				$x['payload'] = array(
 					'commentId' => $inData->payload->comment->id,
 					'comment'   => $inData->payload->comment->html_url
 				);
+
+				return array();
 				break;
-			case "CreateEvent":
+			case "CreateEvent": // -
 				$x['payload'] = array(
 					'ref'      => $inData->payload->ref,
-					'ref_type' => $inData->payload->ref_type
+					'ref_type' => $inData->payload->ref_type // branch
 				);
+
+				return array();
 				break;
-			case "DeleteEvent":
+			case "DeleteEvent": // -
 				$x['payload'] = array(
 					'ref'      => $inData->payload->ref,
-					'ref_type' => $inData->payload->ref_type
+					'ref_type' => $inData->payload->ref_type // branch
 				);
+
+				return array();
 				break;
 			case "DeploymentEvent":
 				break;
@@ -461,25 +513,29 @@ class test2GitHubApi extends Command
 			case "FollowEvent":
 				break;
 			case "ForkEvent":
-				break; //-
+				$x['payload'] = array(
+					'forkeeFork' => $inData->payload->forkee->fork //true
+				);
+				break;
 			case "ForkApplyEvent":
 				break;
 			case "GistEvent":
 				break;
 			case "GollumEvent":
 				break;
-			case "IssueCommentEvent":
-				$x['payload'] = array(
+			case "IssueCommentEvent": // -
+				/*$x['payload'] = array(
 					'action'          => $inData->payload->action,
 					'issueNumber'     => $inData->payload->issue->number,
 					'commentHtml_url' => $inData->payload->comment->html_url
-				);
+				);*/
+				return array();
 				break;
-			case "IssuesEvent":
+			case "IssuesEvent": //<=======================================
 				$x['payload'] = array(
-					'action'      => $inData->payload->action,
+					'action'     => $inData->payload->action, //opened | closed
 					'issueNumber' => $inData->payload->issue->number,
-					'issueTitle'  => $inData->payload->issue->title
+					'issueTitle' => $inData->payload->issue->title
 				);
 				break;
 			case "MemberEvent":
@@ -492,12 +548,14 @@ class test2GitHubApi extends Command
 				break;
 			case "PullRequestReviewCommentEvent":
 				break;
-			case "PushEvent":
+			case "PushEvent": // -
 				$x['payload'] = array(
 					'push_id' => $inData->payload->push_id,
 					'ref'     => $inData->payload->ref,
 					'head'    => $inData->payload->head
 				);
+
+				return array();
 				break;
 			case "ReleaseEvent":
 				break;

@@ -2,6 +2,7 @@
 
 use FintechFab\Components\GitHubAPI;
 use FintechFab\Models\GitHubComments;
+use FintechFab\Models\GitHubEvents;
 use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\GitHubMembers;
 use FintechFab\Models\GitHubRefcommits;
@@ -75,6 +76,7 @@ class FintechFabFromGitHub extends Command
 			case "commits":
 				break;
 			case "events":
+				$this->events();
 				break;
 			case "issues":
 				$maxDate = GitHubIssues::max('updated'); //Максимальная дата, полученная с GitHub'а
@@ -166,6 +168,36 @@ class FintechFabFromGitHub extends Command
 
 			$this->updateConditionalRequest($group); //Обновление условия повторных запросов, если есть
 		} else {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+	}
+
+	/**
+	 * Получение из GitHub’а и добавление в БД событий, например, открытие новой задачи
+	 */
+	private function events()
+	{
+		$strMaxDate = GitHubEvents::max('created');
+		$maxDate = empty($strMaxDate) ? 0 : strtotime(str_replace(' ', 'T', $strMaxDate) . 'Z');
+		$this->gitHubAPI->setNewRepoQuery('events');
+
+		$isContinue = true;
+		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			$isContinue = $this->timeFilter($maxDate, 'created_at');
+
+			//Фильтр полученных данных
+			$response = array();
+			foreach ($this->gitHubAPI->response as $item) {
+				if (GitHubEvents::isAcceptData($item)) {
+					$response[] = $item;
+				}
+			}
+
+			$this->saveInDB($response, GitHubEvents::class);
+		}
+		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 	}

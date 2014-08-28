@@ -78,10 +78,20 @@ class testGitHubApi extends Command
 				break;
 			case "commits":
 				//$res = $this->getFromGitHubApi($this->apiRepos . "commits?since=" . $qDate, "commitsData");
-				$res = $this->getFromGitHubApi($this->apiRepos . "commits", "commitsData");
+				//$res = $this->getFromGitHubApi($this->apiRepos . "commits", "commitsData");
+				$res = $this->getFromGitHubApi($this->apiRepos . "commits?page=2", "commitsData");
 				break;
 			case "events":
-				$res = $this->getFromGitHubApi($this->apiRepos . "events?page=2", "eventsData");
+				//$res = $this->getFromGitHubApi($this->apiRepos . "events?page=2", "eventsData");
+
+				$res = array();
+
+				$res[] = $this->getFromGitHubApi($this->apiRepos . "events", "eventsData");
+				$res[] = $this->getFromGitHubApi($this->apiRepos . "events?page=2", "eventsData");
+				$res[] = $this->getFromGitHubApi($this->apiRepos . "events?page=3", "eventsData");
+				$res[] = $this->getFromGitHubApi($this->apiRepos . "events?page=4", "eventsData");
+
+
 				//Не удалять.
 				//$res = $this->getFromGitHubApi($this->apiRepos . "events?since=" . $qDate, "eventsData");  //Параметры здесь не работают
 				break;
@@ -314,8 +324,8 @@ class testGitHubApi extends Command
 
 		$header = array();
 
-		$pos = strpos($response, "\r\n\r\n"); //альтернативный вариант отделения заголовка
-		$header['originStr'] = substr($response, 0, $pos); //альтернативный вариант отделения заголовка
+		//$pos = strpos($response, "\r\n\r\n"); //альтернативный вариант отделения заголовка
+		//$header['originStr'] = substr($response, 0, $pos); //альтернативный вариант отделения заголовка
 
 
 		/*
@@ -334,7 +344,7 @@ class testGitHubApi extends Command
 				$header[substr($res[$i], 0, $p)] = substr($res[$i], $p + 1);
 			}
 		}
-		$header['origin'] = $res;
+		//$header['origin'] = $res;
 		$fullResponse = array();
 		$this->_rateLimit = self::isNull($header['X-RateLimit-Limit'], 0);
 		$this->_rateLimitRemaining = self::isNull($header['X-RateLimit-Remaining'], 0);
@@ -350,7 +360,10 @@ class testGitHubApi extends Command
 			} else {
 				$res = array();
 				foreach (json_decode($response) as $inData) {
-					$res[] = self::$func($inData);
+					$r = self::$func($inData);
+					if (count($r) > 0) {
+						$res[] = $r;
+					}
 				}
 				$fullResponse['response'] = $res;
 
@@ -389,10 +402,19 @@ class testGitHubApi extends Command
 	protected static function commitsData($inData)
 	{
 		$x = array();
+		$mesStart = ltrim($inData->commit->message);
+		if ($mesStart[0] == '#') {
+			return $x;
+		}
+		if (empty($inData->committer->login)) {
+			return $x;
+		}
+
+		$x['sha'] = $inData->sha;
 		$x['html_url'] = $inData->html_url;
-		$x['date'] = $inData->commit->author->date;
 		$x['message'] = $inData->commit->message;
 		$x['authorName'] = $inData->commit->author->name;
+		$x['authorDate'] = $inData->commit->author->date;
 		$x['committerName'] = $inData->commit->committer->name;
 		$x['author'] = self::isNull(array($inData->author, "login")); //empty($inData->author->login) ? '' : $inData->author->login;
 		$x['committer'] = self::isNull(array($inData->committer, "login")); //empty($inData->committer->login) ? '' : $inData->committer->login;
@@ -407,23 +429,29 @@ class testGitHubApi extends Command
 		$x['actorLogin'] = $inData->actor->login;
 		$x['created_at'] = $inData->created_at;
 		switch ($inData->type) {
-			case "CommitCommentEvent":
+			case "CommitCommentEvent": // -
 				$x['payload'] = array(
 					'commentId' => $inData->payload->comment->id,
 					'comment'   => $inData->payload->comment->html_url
 				);
+
+				return array();
 				break;
-			case "CreateEvent":
+			case "CreateEvent": // -
 				$x['payload'] = array(
 					'ref'      => $inData->payload->ref,
-					'ref_type' => $inData->payload->ref_type
+					'ref_type' => $inData->payload->ref_type // branch
 				);
+
+				return array();
 				break;
-			case "DeleteEvent":
+			case "DeleteEvent": // -
 				$x['payload'] = array(
 					'ref'      => $inData->payload->ref,
-					'ref_type' => $inData->payload->ref_type
+					'ref_type' => $inData->payload->ref_type // branch
 				);
+
+				return array();
 				break;
 			case "DeploymentEvent":
 				break;
@@ -434,24 +462,29 @@ class testGitHubApi extends Command
 			case "FollowEvent":
 				break;
 			case "ForkEvent":
-				break; //-
+				$x['payload'] = array(
+					'forkeeFork' => $inData->payload->forkee->fork //true
+				);
+				break;
 			case "ForkApplyEvent":
 				break;
 			case "GistEvent":
 				break;
 			case "GollumEvent":
 				break;
-			case "IssueCommentEvent":
-				$x['payload'] = array(
+			case "IssueCommentEvent": // -
+				/*$x['payload'] = array(
 					'action'          => $inData->payload->action,
 					'issueNumber'     => $inData->payload->issue->number,
 					'commentHtml_url' => $inData->payload->comment->html_url
-				);
+				);*/
+				return array();
 				break;
-			case "IssuesEvent":
+			case "IssuesEvent": //<=======================================
 				$x['payload'] = array(
-					'action'      => $inData->payload->action,
-					'issueNumber' => $inData->payload->issue->number
+					'action'      => $inData->payload->action, //opened | closed
+					'issueNumber' => $inData->payload->issue->number,
+					'issueTitle'  => $inData->payload->issue->title
 				);
 				break;
 			case "MemberEvent":
@@ -465,11 +498,14 @@ class testGitHubApi extends Command
 			case "PullRequestReviewCommentEvent":
 				break;
 			case "PushEvent":
+				// -
 				$x['payload'] = array(
 					'push_id' => $inData->payload->push_id,
 					'ref'     => $inData->payload->ref,
 					'head'    => $inData->payload->head
 				);
+
+				return array();
 				break;
 			case "ReleaseEvent":
 				break;
