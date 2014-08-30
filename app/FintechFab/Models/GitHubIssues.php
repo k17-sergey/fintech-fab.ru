@@ -27,6 +27,7 @@ class GitHubIssues extends Eloquent implements IGitHubModel
 {
 	public $timestamps = false;
 	protected $table = 'github_issues';
+	protected $primaryKey = 'number';
 
 	public function user()
 	{

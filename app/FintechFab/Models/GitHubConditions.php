@@ -23,5 +23,6 @@ class GitHubConditions extends Eloquent
 {
 	protected $table = 'github_conditional_requests';
 
+	protected $primaryKey = 'repo_item';
 
 }

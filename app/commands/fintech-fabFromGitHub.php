@@ -363,10 +363,6 @@ class FintechFabFromGitHub extends Command
 		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
 
 		if ($newCondition == '') {
-			if (!empty($repoCondition)) {
-				$repoCondition->delete();
-			}
-
 			return;
 		}
 

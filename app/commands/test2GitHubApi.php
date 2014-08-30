@@ -94,6 +94,11 @@ class test2GitHubApi extends Command
 				$res[] = $this->editData($this->gitHubAPI->response, 'issuesEventsData');
 				break;
 			case "users":
+				if (!$this->gitHubAPI->isSetUser()) {
+					$user = $this->ask('Введите имя пользователя GitHub:');
+					$password = $this->secret('Введите пароль:');
+					$this->gitHubAPI->setUser($user, $password);
+				}
 				$this->gitHubAPI->setNewRepoQuery('contributors');
 				//$this->gitHubAPI->setHeader304('If-Modified-Since: Wed, 23 Jul 2014 10:06:46 GMT');
 				$this->prepareCondition('contributors');
