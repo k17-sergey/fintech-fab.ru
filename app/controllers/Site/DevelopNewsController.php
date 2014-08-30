@@ -4,10 +4,12 @@ namespace App\Controllers\Site;
 
 use App\Controllers\BaseController;
 use FintechFab\Models\GitHubComments;
+use FintechFab\Models\GitHubEvents;
 use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\GitHubMembers;
 use FintechFab\Models\GitHubRefcommits;
 use Input;
+use DB;
 
 class DevelopNewsController extends BaseController
 {
@@ -23,7 +25,22 @@ class DevelopNewsController extends BaseController
 
 		//Время на начало выборки данных (в пересчете на несколько недель назад)
 		$timeRequest = date('c', time() - $inTime * 3600 * 24 * 7);
-		$eventData = array();
+
+		$eventData = new \stdClass();
+		$eventData->countIssuesOpened = GitHubIssues::whereState('open')->count('*');
+		$eventData->countIssuesInWork = DB::table('github_issues')
+			->join('github_refcommits', function ($join) {
+				$join->on('github_refcommits.issue_number', '=', 'github_issues.number')
+					->where('github_issues.state', '=', 'open');
+			})
+			->distinct()
+			->count('github_issues.number');
+		$eventData->issuesEvents = $this->getEvents('issuesEvent', $timeRequest);
+
+		//join('github_refcommits', 'github_refcommits.issue_number', '=', 'github_issues.number')->
+		//where('github_issues.state', '=', 'open')->
+
+
 		$issuesData = array();
 
 		$issues = GitHubIssues::whereNull("closed")->select('number', 'html_url', 'title', 'user_login')->get();
@@ -63,11 +80,10 @@ class DevelopNewsController extends BaseController
 		$outComments = array();
 		/** @var GitHubComments $comment */
 		foreach ($comments as $comment) {
-			$localtime = date('H:i:s d.m.Y', strtotime(str_replace(" ", "T", $comment->updated) . "Z"));
 			$out = new \stdClass();
 			$out->html_url = $comment->html_url;
 			$out->user_login = $comment->user_login;
-			$out->time = $localtime;
+			$out->time = self::timeToLocalForShow($comment->updated);
 			$out->preview = $comment->prev;
 			$out->avatar_url = GitHubMembers::find($comment->user_login)->avatar_url;
 
@@ -93,10 +109,9 @@ class DevelopNewsController extends BaseController
 		$outCommits = array();
 		/** @var GitHubRefcommits $commit */
 		foreach ($commits as $commit) {
-			$localtime = date('H:i:s d.m.Y', strtotime(str_replace(" ", "T", $commit->created) . "Z"));
 			$out = new \stdClass();
 			$out->actor_login = $commit->actor_login;
-			$out->time = $localtime;
+			$out->time = self::timeToLocalForShow($commit->created);
 			$out->message = $commit->message;
 			$out->avatar_url = GitHubMembers::find($commit->actor_login)->avatar_url;
 
@@ -105,5 +120,46 @@ class DevelopNewsController extends BaseController
 
 		return $outCommits;
 	}
+
+	/**
+	 * @param string $type
+	 * @param string $timeRequest
+	 *
+	 * @return array
+	 */
+	private function getEvents($type, $timeRequest)
+	{
+		$events = GitHubEvents::whereType($type)
+			->where('created', '>', $timeRequest)
+			->orderBy('created', 'desc')
+			->get();
+
+		$outEvents = array();
+		/** @var GitHubEvents $event */
+		foreach ($events as $event) {
+			$out = new \stdClass();
+			$out->actor_login = $event->actor_login;
+			$out->time = self::timeToLocalForShow($event->created);
+			$out->payload = $event->payload;
+			$out->avatar_url = GitHubMembers::find($event->actor_login)->avatar_url;
+
+			$outEvents[] = $out;
+		}
+
+		return $outEvents;
+	}
+
+	/**
+	 * Преобразование в локальное время (в БД — глобальное) и форматирование его для показа на странице
+	 *
+	 * @param string $strTime
+	 *
+	 * @return bool|string
+	 */
+	private static function timeToLocalForShow($strTime)
+	{
+		return date('H:i:s d.m.Y', strtotime(str_replace(" ", "T", $strTime) . "Z"));
+	}
+
 
 }

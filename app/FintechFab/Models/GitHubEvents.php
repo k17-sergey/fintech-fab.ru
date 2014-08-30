@@ -16,6 +16,8 @@ use Eloquent;
  * @property integer $created
  * @property string  $payload
  *
+ * @method GitHubEvents whereType static
+ *
  */
 class GitHubEvents extends Eloquent implements IGitHubModel
 {

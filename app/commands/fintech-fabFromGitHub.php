@@ -137,9 +137,51 @@ class FintechFabFromGitHub extends Command
 	 */
 	private function showHelp($option)
 	{
+		$baseQuery = '/repos/:owner/:repo';
 		switch ($option) {
 			case "list":
-				//
+				$this->comment("Список аргументов:");
+				$this->info("\t comments \t\t загрузка комментариев к задачам");
+				$this->info("\t commits \t\t (не сделано) коммиты в главную ветку");
+				$this->info("\t events \t\t загрузка общих событий");
+				$this->info("\t issues \t\t загрузка списка задач");
+				$this->info("\t issuesEvents \t\t загрузка событий, имеющих ссылку на задачу");
+				$this->info("\t list    \t\t показывает это сообщение ");
+				$this->info("\t rateLimit \t\t информация об ограничениях подключения к API GitHub");
+				$this->info("\t users   \t\t загрузка пользователей");
+				break;
+			case "comments":
+				$this->comment('--helpArg=comments ');
+				$this->info("\t comments \t загрузка комментариев к задачам");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues/comments");
+				break;
+			case "commits":
+				$this->comment("--helpArg=commits ");
+				$this->info("\t commits \t (не сделано) коммиты в главную ветку");
+				break;
+			case "events":
+				$this->comment("--helpArg=events ");
+				$this->info("\t events \t загрузка общих событий");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/events");
+				break;
+			case "issues":
+				$this->comment("--helpArg=issues ");
+				$this->info("\t issues \t загрузка списка задач");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues");
+				break;
+			case "issuesEvents":
+				$this->comment("--helpArg=issuesEvents ");
+				$this->info("\t issuesEvents \t загрузка событий, имеющих ссылку на задачу");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues/events");
+				$this->info("\t\t\t и на основе полученных данных ");
+				$this->info("\t\t\t для каждого коммита: \t $baseQuery/git/commits/:sha");
+				$this->info("\t  \t\t ");
+				break;
+			case "users":
+				$this->comment("--helpArg=users ");
+				$this->info("\t users   \t загрузка пользователей");
+				$this->info("\t\t\t Запросы к API GitHub: \t $baseQuery/contributors");
+				$this->info("\t\t\t                       \t $baseQuery/assignees");
 				break;
 			case "rateLimit":
 				$this->info("Rate limit. Ограничение количества запросов к GitHub API.\n\nКоличество запросов ограничено в течение часа, называемое \"Rate limit\"\n" .

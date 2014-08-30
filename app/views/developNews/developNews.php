@@ -1,7 +1,7 @@
 <?php
 /**
  * @var integer $inTime
- * @var array   $eventData
+ * @var object  $eventData
  * @var array   $issuesData
  */
 
@@ -48,7 +48,9 @@
 						'1' => ' неделя',
 						'2' => '2 недели',
 						'3' => '3 недели',
-						'4' => '4 недели'
+						'4' => '4 недели',
+						'5' => '5 недель',
+						'6' => '6 недель'
 					),
 					"$inTime",
 					array('class' => 'form-control', 'id' => 'inTime')
@@ -70,7 +72,7 @@
 	<div id="tabs">
 		<ul class="nav nav-tabs">
 			<li class="active">
-				<a href="#tab1" data-toggle="tab">Общие события</a>
+				<a href="#tab1" data-toggle="tab">Общее</a>
 			</li>
 			<li>
 				<a href="#tab2" data-toggle="tab">Задачи</a>
