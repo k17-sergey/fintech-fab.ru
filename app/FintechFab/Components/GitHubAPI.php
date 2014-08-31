@@ -75,7 +75,7 @@ class GitHubAPI
 			$this->organisation = $owner;
 		}
 
-		$user = Config::get("github.user");
+		$user = Config::get("github.username");
 		$password = Config::get("github.password");
 		if (!(empty($user) || empty($password))) {
 			$this->userPassword = "$user:$password";
@@ -108,6 +108,7 @@ class GitHubAPI
 
 	/**
 	 * Имя пользователя и пароль в виде  [username]:[password]
+	 *
 	 * @var string|null
 	 */
 	private $userPassword = null;
@@ -295,8 +296,7 @@ class GitHubAPI
 			curl_setopt($ch, CURLOPT_USERPWD, $this->userPassword);
 		}
 
-		if ($this->conditional != '')
-		{
+		if ($this->conditional != '') {
 			curl_setopt($ch, CURLOPT_HTTPHEADER, array($this->conditional));
 		}
 
