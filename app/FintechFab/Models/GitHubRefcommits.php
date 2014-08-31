@@ -30,15 +30,12 @@ class GitHubRefcommits extends Eloquent implements IGitHubModel
 		return GitHubIssues::where("number", $this->issue_number)->first();
 	}
 
-	public function user()	{
+	public function user()
+	{
 		return GitHubMembers::find($this->actor_login);
 	}
 
 
-	public function getKeyName()
-	{
-		return 'id';
-	}
 	public function getMyName()
 	{
 		return 'issue commit';
@@ -46,7 +43,7 @@ class GitHubRefcommits extends Eloquent implements IGitHubModel
 
 	public function dataGitHub($inData)
 	{
-		if($inData->event != 'referenced'){
+		if ($inData->event != 'referenced') {
 			return false;
 		}
 		$this->id = $inData->id;
@@ -54,22 +51,23 @@ class GitHubRefcommits extends Eloquent implements IGitHubModel
 		$this->actor_login = $inData->actor->login;
 		$this->created = $inData->created_at;
 		$this->issue_number = $inData->issue->number;
-		if(isset($inData->message))
-		{
+		if (isset($inData->message)) {
 			$this->message = $inData->message;
 		}
+
 		return true;
 	}
+
 	public function updateFromGitHub($inData)
 	{
-		if(isset($inData->message))
-		{
-			if($this->message == '')
-			{
+		if (isset($inData->message)) {
+			if ($this->message == '') {
 				$this->message = $inData->message;
+
 				return true;
 			}
 		}
+
 		return false;
 	}
 }

@@ -2,6 +2,7 @@
 
 use FintechFab\Components\GitHubAPI;
 use FintechFab\Models\GitHubComments;
+use FintechFab\Models\GitHubEvents;
 use FintechFab\Models\GitHubIssues;
 use FintechFab\Models\GitHubMembers;
 use FintechFab\Models\GitHubRefcommits;
@@ -75,6 +76,7 @@ class FintechFabFromGitHub extends Command
 			case "commits":
 				break;
 			case "events":
+				$this->events();
 				break;
 			case "issues":
 				$maxDate = GitHubIssues::max('updated'); //Максимальная дата, полученная с GitHub'а
@@ -135,9 +137,51 @@ class FintechFabFromGitHub extends Command
 	 */
 	private function showHelp($option)
 	{
+		$baseQuery = '/repos/:owner/:repo';
 		switch ($option) {
 			case "list":
-				//
+				$this->comment("Список аргументов:");
+				$this->info("\t comments \t\t загрузка комментариев к задачам");
+				$this->info("\t commits \t\t (не сделано) коммиты в главную ветку");
+				$this->info("\t events \t\t загрузка общих событий");
+				$this->info("\t issues \t\t загрузка списка задач");
+				$this->info("\t issuesEvents \t\t загрузка событий, имеющих ссылку на задачу");
+				$this->info("\t list    \t\t показывает это сообщение ");
+				$this->info("\t rateLimit \t\t информация об ограничениях подключения к API GitHub");
+				$this->info("\t users   \t\t загрузка пользователей");
+				break;
+			case "comments":
+				$this->comment('--helpArg=comments ');
+				$this->info("\t comments \t загрузка комментариев к задачам");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues/comments");
+				break;
+			case "commits":
+				$this->comment("--helpArg=commits ");
+				$this->info("\t commits \t (не сделано) коммиты в главную ветку");
+				break;
+			case "events":
+				$this->comment("--helpArg=events ");
+				$this->info("\t events \t загрузка общих событий");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/events");
+				break;
+			case "issues":
+				$this->comment("--helpArg=issues ");
+				$this->info("\t issues \t загрузка списка задач");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues");
+				break;
+			case "issuesEvents":
+				$this->comment("--helpArg=issuesEvents ");
+				$this->info("\t issuesEvents \t загрузка событий, имеющих ссылку на задачу");
+				$this->info("\t\t\t Запрос к API GitHub: \t $baseQuery/issues/events");
+				$this->info("\t\t\t и на основе полученных данных ");
+				$this->info("\t\t\t для каждого коммита: \t $baseQuery/git/commits/:sha");
+				$this->info("\t  \t\t ");
+				break;
+			case "users":
+				$this->comment("--helpArg=users ");
+				$this->info("\t users   \t загрузка пользователей");
+				$this->info("\t\t\t Запросы к API GitHub: \t $baseQuery/contributors");
+				$this->info("\t\t\t                       \t $baseQuery/assignees");
 				break;
 			case "rateLimit":
 				$this->info("Rate limit. Ограничение количества запросов к GitHub API.\n\nКоличество запросов ограничено в течение часа, называемое \"Rate limit\"\n" .
@@ -166,6 +210,36 @@ class FintechFabFromGitHub extends Command
 
 			$this->updateConditionalRequest($group); //Обновление условия повторных запросов, если есть
 		} else {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+		}
+	}
+
+	/**
+	 * Получение из GitHub’а и добавление в БД событий, например, открытие новой задачи
+	 */
+	private function events()
+	{
+		$strMaxDate = GitHubEvents::max('created');
+		$maxDate = empty($strMaxDate) ? 0 : strtotime(str_replace(' ', 'T', $strMaxDate) . 'Z');
+		$this->gitHubAPI->setNewRepoQuery('events');
+
+		$isContinue = true;
+		while ($isContinue && $this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			$isContinue = $this->timeFilter($maxDate, 'created_at');
+
+			//Фильтр полученных данных
+			$response = array();
+			foreach ($this->gitHubAPI->response as $item) {
+				if (GitHubEvents::isAcceptData($item)) {
+					$response[] = $item;
+				}
+			}
+
+			$this->saveInDB($response, GitHubEvents::class);
+		}
+		if (!$this->gitHubAPI->isDoneRequest()) {
 			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 	}
@@ -289,10 +363,6 @@ class FintechFabFromGitHub extends Command
 		$repoCondition = GitHubConditions::whereRepoItem($forRepoItem)->first();
 
 		if ($newCondition == '') {
-			if (!empty($repoCondition)) {
-				$repoCondition->delete();
-			}
-
 			return;
 		}
 

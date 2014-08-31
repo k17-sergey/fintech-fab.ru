@@ -4,7 +4,8 @@
  *
  *  начало:
  *        $gitHubAPI = new GitHubAPI();
- *      $gitHubAPI->setRepo($owner, $repository); //('fintech-fab', 'fintech-fab.ru');
+ *      $gitHubAPI->setRepo($owner, $repository);  //('fintech-fab', 'fintech-fab.ru');
+ *      $gitHubAPI->setOrganisation($organisation);//('fintech-fab');
  *
  * либо:
  *        $gitHubAPI = new GitHubAPI($owner, $repository);
@@ -12,6 +13,9 @@
  *
  * запросы:
  *      $gitHubAPI->setNewRepoQuery($contentOfRepository, $params); //('issues/comments') | ('')
+ *      либо:
+ *      $gitHubAPI->setNewOrgQuery($orgData, $params);              //Запрос данных об организации
+ *
  *        while($gitHubAPI->doNextRequest())
  *        {
  *            //
@@ -37,6 +41,7 @@
  */
 namespace FintechFab\Components;
 
+use Config;
 
 class GitHubAPI
 {
@@ -50,6 +55,12 @@ class GitHubAPI
 	 * @var string
 	 */
 	private $workRepo = '';
+	/**
+	 * Название организации на GitHub'е (она же — "owner" в запросах к API GitHub)
+	 *
+	 * @var string
+	 */
+	private $organisation = '';
 
 	/**
 	 * @param string $owner Владелец репозитория
@@ -60,6 +71,23 @@ class GitHubAPI
 		if (!($owner == '' || $repo == '')) {
 			$this->setRepo($owner, $repo);
 		}
+		if ($owner != '') {
+			$this->organisation = $owner;
+		}
+
+		$user = Config::get("github.username");
+		$password = Config::get("github.password");
+		if (!(empty($user) || empty($password))) {
+			$this->userPassword = "$user:$password";
+		}
+	}
+
+	/**
+	 * @param string $org Название организации на GitHub'е
+	 */
+	public function setOrganisation($org)
+	{
+		$this->organisation = $org;
 	}
 
 	/**
@@ -77,6 +105,32 @@ class GitHubAPI
 	private $currentUrl = ''; //подготовленный к выполнению
 	private $usedUrl = ''; //выполненный
 	private $isDone = false; // выполнен ли запрос?
+
+	/**
+	 * Имя пользователя и пароль в виде  [username]:[password]
+	 *
+	 * @var string|null
+	 */
+	private $userPassword = null;
+
+	/**
+	 * Задание имя пользователя и пароль для доступа к API GitHub
+	 *
+	 * @param string $user
+	 * @param string $password
+	 */
+	public function setUser($user, $password)
+	{
+		$this->userPassword = "$user:$password";
+	}
+
+	/**
+	 * @return bool Установлены ли имя пользователя и пароль для доступа к API GitHub
+	 */
+	public function isSetUser()
+	{
+		return (!is_null($this->userPassword));
+	}
 
 	/**
 	 * Завершение подготовки запроса.
@@ -100,6 +154,29 @@ class GitHubAPI
 		}
 	}
 
+	/**
+	 * Подготовка запроса по имени организации на GitHub'е
+	 * (предварительно должно быть установлено имя организации)
+	 *
+	 * @param string $orgData
+	 * @param string $params
+	 */
+	public function setNewOrgQuery($orgData = '', $params = '')
+	{
+		if ($this->organisation == '') {
+			$this->startUrl = '';
+			$this->currentUrl = '';
+		} else {
+			$orgData = ($orgData == '') ? '' : ('/' . $orgData);
+			$this->startUrl = self::BASE_URL .
+				'orgs/' .
+				$this->organisation .
+				$orgData .
+				($params = "" ? "" : ("?" . $params));
+			$this->currentUrl = $this->startUrl;
+			$this->usedUrl = '';
+		}
+	}
 
 	/**  Для повторных запросов с заголовком If-None-Match или If-Modified-Since. Корректный статус ответа: 304.*/
 	private $conditional = '';
@@ -215,6 +292,9 @@ class GitHubAPI
 		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 		curl_setopt($ch, CURLOPT_USERAGENT, "fintech-fab");
 		curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 0); //без перенаправлений на другой адрес
+		if (!is_null($this->userPassword)) {
+			curl_setopt($ch, CURLOPT_USERPWD, $this->userPassword);
+		}
 
 		if ($this->conditional != '') {
 			curl_setopt($ch, CURLOPT_HTTPHEADER, array($this->conditional));

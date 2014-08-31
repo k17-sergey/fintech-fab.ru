@@ -13,13 +13,14 @@ use Eloquent;
  *
  * @property string   $login
  * @property string   $avatar_url
- * @property integer  $contributions
+ * @property integer  $contributions //This is a pull request merged but user does not have collaborator access
  *
  */
 class GitHubMembers extends Eloquent implements IGitHubModel
 {
 
 	protected $table = 'github_members';
+	protected $primaryKey = 'login';
 
 	public function issues()
 	{
@@ -29,12 +30,6 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 	public function users()
 	{
 		return GitHubIssues::where("user_login", $this->login)->get();
-	}
-
-
-	public function getKeyName()
-	{
-		return 'login';
 	}
 
 	public function getMyName()
