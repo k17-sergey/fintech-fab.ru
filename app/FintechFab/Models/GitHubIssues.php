@@ -11,8 +11,8 @@ use Eloquent;
  *
  * @package FintechFab\Models
  *
- * @property string  $html_url
  * @property integer $number
+ * @property string  $html_url
  * @property string  $title
  * @property string  $state
  * @property integer $created
@@ -39,11 +39,6 @@ class GitHubIssues extends Eloquent implements IGitHubModel
 	{
 		return GitHubComments::where("issue_number", $this->number)->orderBy("created")->get();
 
-	}
-
-	public function getKeyName()
-	{
-		return 'number';
 	}
 
 	public function getMyName()

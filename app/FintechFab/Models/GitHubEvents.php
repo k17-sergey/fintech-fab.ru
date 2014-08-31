@@ -31,11 +31,6 @@ class GitHubEvents extends Eloquent implements IGitHubModel
 	}
 
 
-	public function getKeyName()
-	{
-		return 'id';
-	}
-
 	public function getMyName()
 	{
 		return 'event';

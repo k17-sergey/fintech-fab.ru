@@ -20,13 +20,6 @@ class Create3TablesForGithub extends Migration
 			$table->dateTime('created');
 			$table->string('payload', 200); //Содержание события (полученные данные обрабатываются, сохраняя как текст)
 		});
-
-		Schema::table('github_members', function (Blueprint $table) {
-			//Адрес данных: https://api.github.com/orgs/fintech-fab/teams
-			//Оттуда берем название конкретной группы и ее список, например,
-			// {"name": "probation",  "url": "https://api.github.com/teams/786560"}
-			$table->string('team', 20)->nullable();
-		});
 	}
 
 	/**
@@ -37,9 +30,6 @@ class Create3TablesForGithub extends Migration
 	public function down()
 	{
 		Schema::drop('github_events');
-		Schema::table('github_members', function (Blueprint $table) {
-			$table->dropColumn('team');
-		});
 	}
 
 }

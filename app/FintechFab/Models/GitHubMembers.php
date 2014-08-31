@@ -14,7 +14,6 @@ use Eloquent;
  * @property string   $login
  * @property string   $avatar_url
  * @property integer  $contributions //This is a pull request merged but user does not have collaborator access
- * @property string   $team          //Группа, в которую входит пользователь
  *
  */
 class GitHubMembers extends Eloquent implements IGitHubModel
@@ -31,12 +30,6 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 	public function users()
 	{
 		return GitHubIssues::where("user_login", $this->login)->get();
-	}
-
-
-	public function getKeyName()
-	{
-		return 'login';
 	}
 
 	public function getMyName()
