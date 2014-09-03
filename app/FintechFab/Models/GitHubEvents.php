@@ -25,6 +25,9 @@ class GitHubEvents extends Eloquent implements IGitHubModel
 
 	protected $table = 'github_events';
 
+	/**
+	 * @return GitHubMembers
+	 */
 	public function user()
 	{
 		return GitHubMembers::find($this->actor_login);

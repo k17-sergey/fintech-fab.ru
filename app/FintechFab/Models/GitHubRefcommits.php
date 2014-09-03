@@ -25,11 +25,17 @@ class GitHubRefcommits extends Eloquent implements IGitHubModel
 
 	protected $table = 'github_refcommits';
 
+	/**
+	 * @return GitHubIssues
+	 */
 	public function issue()
 	{
 		return GitHubIssues::where("number", $this->issue_number)->first();
 	}
 
+	/**
+	 * @return GitHubMembers
+	 */
 	public function user()
 	{
 		return GitHubMembers::find($this->actor_login);

@@ -6,7 +6,6 @@ use App\Controllers\BaseController;
 use FintechFab\Models\GitHubComments;
 use FintechFab\Models\GitHubEvents;
 use FintechFab\Models\GitHubIssues;
-use FintechFab\Models\GitHubMembers;
 use FintechFab\Models\GitHubRefcommits;
 use Input;
 use DB;
@@ -37,9 +36,6 @@ class DevelopNewsController extends BaseController
 			->count('github_issues.number');
 		$eventData->issuesEvents = $this->getEvents('issuesEvent', $timeRequest);
 
-		//join('github_refcommits', 'github_refcommits.issue_number', '=', 'github_issues.number')->
-		//where('github_issues.state', '=', 'open')->
-
 
 		$issuesData = array();
 
@@ -47,7 +43,7 @@ class DevelopNewsController extends BaseController
 		foreach ($issues as $item) {
 			$issue = new \stdClass();
 			$issue->head = $item;
-			$issue->avatar_url = GitHubMembers::find($item->user_login)->avatar_url;
+			$issue->avatar_url = $item->user()->avatar_url;
 			$issue->comments = $this->getComments($item->number, $timeRequest);
 			$issue->commits = $this->getCommits($item->number, $timeRequest);
 
@@ -85,7 +81,7 @@ class DevelopNewsController extends BaseController
 			$out->user_login = $comment->user_login;
 			$out->time = self::timeToLocalForShow($comment->updated);
 			$out->preview = $comment->prev;
-			$out->avatar_url = GitHubMembers::find($comment->user_login)->avatar_url;
+			$out->avatar_url = $comment->user()->avatar_url;
 
 			$outComments[] = $out;
 		}
@@ -113,7 +109,7 @@ class DevelopNewsController extends BaseController
 			$out->actor_login = $commit->actor_login;
 			$out->time = self::timeToLocalForShow($commit->created);
 			$out->message = $commit->message;
-			$out->avatar_url = GitHubMembers::find($commit->actor_login)->avatar_url;
+			$out->avatar_url = $commit->user()->avatar_url;
 
 			$outCommits[] = $out;
 		}
@@ -141,7 +137,7 @@ class DevelopNewsController extends BaseController
 			$out->actor_login = $event->actor_login;
 			$out->time = self::timeToLocalForShow($event->created);
 			$out->payload = $event->payload;
-			$out->avatar_url = GitHubMembers::find($event->actor_login)->avatar_url;
+			$out->avatar_url = $event->user()->avatar_url;
 
 			$outEvents[] = $out;
 		}

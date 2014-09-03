@@ -29,12 +29,18 @@ class GitHubIssues extends Eloquent implements IGitHubModel
 	protected $table = 'github_issues';
 	protected $primaryKey = 'number';
 
+	/**
+	 * @return GitHubMembers
+	 */
 	public function user()
 	{
 		return GitHubMembers::find($this->user_login);
 
 	}
 
+	/**
+	 * @return GitHubComments[]
+	 */
 	public function comments()
 	{
 		return GitHubComments::where("issue_number", $this->number)->orderBy("created")->get();

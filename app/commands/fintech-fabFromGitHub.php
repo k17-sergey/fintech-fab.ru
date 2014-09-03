@@ -64,6 +64,11 @@ class FintechFabFromGitHub extends Command
 
 		$this->info("It's OK. Begin...");
 
+		//Данные пользователей GitHub'а загружаются вперед (на них ссылаются почти все таблицы).
+		//При этом лишних загрузок не будет, поскольку в запросе используется условие "If-None-Match"
+		//Причем, для несуществующих пользователей, при необходимости, Eloquent сам создаст запись в таблице (а необходимость — при невозможности вставить строку из-за ограничения foreign key)
+		$this->usersData('assignees'); //Who is working on specific issues and pull requests in your project.
+
 		switch ($this->argument('Category')) {
 			case "comments":
 				$maxDate = GitHubComments::max('updated'); //Максимальная дата, полученная с GitHub'а
@@ -92,7 +97,6 @@ class FintechFabFromGitHub extends Command
 				break;
 			case "users":
 				$this->usersData('contributors'); //Who has contributed to a project by having a pull request merged but does not have collaborator access.
-				$this->usersData('assignees'); //Who is working on specific issues and pull requests in your project.
 				break;
 			case "rateLimit":
 				//Получение инф. о лимите запросов

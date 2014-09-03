@@ -22,11 +22,17 @@ class GitHubMembers extends Eloquent implements IGitHubModel
 	protected $table = 'github_members';
 	protected $primaryKey = 'login';
 
+	/**
+	 * @return GitHubIssues
+	 */
 	public function issues()
 	{
 		return GitHubIssues::where("user_login", $this->login)->get();
 	}
 
+	/**
+	 * @return GitHubMembers
+	 */
 	public function users()
 	{
 		return GitHubIssues::where("user_login", $this->login)->get();
