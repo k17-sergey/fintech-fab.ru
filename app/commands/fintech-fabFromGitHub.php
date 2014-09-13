@@ -71,26 +71,16 @@ class FintechFabFromGitHub extends Command
 
 		switch ($this->argument('Category')) {
 			case "comments":
-				$maxDate = GitHubComments::max('updated'); //Максимальная дата, полученная с GitHub'а
-				//В парметре — запрос еще не полученных данных, добавленных или измененных после указанной даты
-				$param = empty($maxDate) ? "" : "since='" . str_replace(" ", "T", $maxDate) . "Z'";
-
-				$this->gitHubAPI->setNewRepoQuery('issues/comments', $param);
-				$this->processTheData(GitHubComments::class, empty($maxDate) ? 0 : strtotime(str_replace(" ", "T", $maxDate) . "Z"));
+				$this->comments();
 				break;
 			case "commits":
+				$this->commits();
 				break;
 			case "events":
 				$this->events();
 				break;
 			case "issues":
-				$maxDate = GitHubIssues::max('updated'); //Максимальная дата, полученная с GitHub'а
-				//В парметре — запрос на новые данные
-				$param = empty($maxDate) ? "" :
-					"state=all&since='" . str_replace(" ", "T", $maxDate) . "Z'";
-
-				$this->gitHubAPI->setNewRepoQuery('issues', $param);
-				$this->processTheData(GitHubIssues::class);
+				$this->issues();
 				break;
 			case "issuesEvents":
 				$this->issuesEvents();
@@ -148,11 +138,13 @@ class FintechFabFromGitHub extends Command
 				$this->info("\t comments \t\t загрузка комментариев к задачам");
 				$this->info("\t commits \t\t (не сделано) коммиты в главную ветку");
 				$this->info("\t events \t\t загрузка общих событий");
-				$this->info("\t issues \t\t загрузка списка задач");
+				$this->info("\t issues \t\t загрузка списка задач (вторые в последовательности загрузки)");
 				$this->info("\t issuesEvents \t\t загрузка событий, имеющих ссылку на задачу");
 				$this->info("\t list    \t\t показывает это сообщение ");
 				$this->info("\t rateLimit \t\t информация об ограничениях подключения к API GitHub");
-				$this->info("\t users   \t\t загрузка пользователей");
+				$this->info("\t users   \t\t загрузка пользователей (первые в загрузке)");
+				$this->comment("Важно: ");
+				$this->comment("\t Первыми в загрузке должны быть пользователи GitHub'а \"users\", затем задачи \"issues\"");
 				break;
 			case "comments":
 				$this->comment('--helpArg=comments ');
@@ -197,31 +189,32 @@ class FintechFabFromGitHub extends Command
 		}
 	}
 
+	/**
+	 * Загрузка комментариев к задачам
+	 */
+	public function comments()
+	{
+		$maxDate = GitHubComments::max('updated'); //Максимальная дата, полученная с GitHub'а
+		//В парметре — запрос еще не полученных данных, добавленных или измененных после указанной даты
+		$param = empty($maxDate) ? "" : "since='" . str_replace(" ", "T", $maxDate) . "Z'";
+
+		$this->gitHubAPI->setNewRepoQuery('issues/comments', $param);
+		$this->processTheData(GitHubComments::class, empty($maxDate) ? 0 : strtotime(str_replace(" ", "T", $maxDate) . "Z"));
+
+	}
 
 	/**
-	 * Получение данных пользователей
-	 *
-	 * @param string $group
+	 *  Коммиты в главную ветку (не сделано)
 	 */
-	private function usersData($group)
+	public function commits()
 	{
-		$this->gitHubAPI->setNewRepoQuery($group);
-		$this->prepareCondition($group); //Если запрос повторный, подготовка соответствующего заголовка запроса
-		if ($this->gitHubAPI->doNextRequest()) {
-			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-			$this->saveInDB($this->gitHubAPI->response, GitHubMembers::class);
-
-			$this->updateConditionalRequest($group); //Обновление условия повторных запросов, если есть
-		} else {
-			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
-		}
+		//
 	}
 
 	/**
 	 * Получение из GitHub’а и добавление в БД событий, например, открытие новой задачи
 	 */
-	private function events()
+	public function events()
 	{
 		$strMaxDate = GitHubEvents::max('created');
 		$maxDate = empty($strMaxDate) ? 0 : strtotime(str_replace(' ', 'T', $strMaxDate) . 'Z');
@@ -249,10 +242,24 @@ class FintechFabFromGitHub extends Command
 	}
 
 	/**
+	 * Загрузка задач (должны загружаться вторые, т.е. после пользователей)
+	 */
+	public function issues()
+	{
+		$maxDate = GitHubIssues::max('updated'); //Максимальная дата, полученная с GitHub'а
+		//В парметре — запрос на новые данные
+		$param = empty($maxDate) ? "" :
+			"state=all&since='" . str_replace(" ", "T", $maxDate) . "Z'";
+
+		$this->gitHubAPI->setNewRepoQuery('issues', $param);
+		$this->processTheData(GitHubIssues::class);
+	}
+
+	/**
 	 * Получение из GitHub’а и добавление в БД коммитов, имеющих ссылку на конкретные задачи.
 	 * В принятых данных, коммиты обозначены как события 'referenced'
 	 */
-	private function issuesEvents()
+	public function issuesEvents()
 	{
 		$maxDateStr = GitHubRefcommits::max('created'); //Максимальная дата в БД
 		$maxDate = empty($maxDateStr) ? 0 : strtotime(str_replace(" ", "T", $maxDateStr) . "Z");
@@ -275,6 +282,35 @@ class FintechFabFromGitHub extends Command
 			} else {
 				$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 			}
+		}
+	}
+
+	/**
+	 * Данные пользователей GitHub'а, нужно загружать первыми (на них ссылаются почти все таблицы в БД).
+	 */
+	public function users()
+	{
+		$this->usersData('assignees'); //Who is working on specific issues and pull requests in your project.
+		$this->usersData('contributors'); //Who has contributed to a project by having a pull request merged but does not have collaborator access.
+	}
+
+	/**
+	 * Получение данных пользователей
+	 *
+	 * @param string $group
+	 */
+	private function usersData($group)
+	{
+		$this->gitHubAPI->setNewRepoQuery($group);
+		$this->prepareCondition($group); //Если запрос повторный, подготовка соответствующего заголовка запроса
+		if ($this->gitHubAPI->doNextRequest()) {
+			$this->info("\nLimit remaining: " . $this->gitHubAPI->getLimitRemaining());
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
+			$this->saveInDB($this->gitHubAPI->response, GitHubMembers::class);
+
+			$this->updateConditionalRequest($group); //Обновление условия повторных запросов, если есть
+		} else {
+			$this->info("Результат запроса: " . $this->gitHubAPI->messageOfResponse);
 		}
 	}
 
